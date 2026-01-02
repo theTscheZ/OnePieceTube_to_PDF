@@ -28,13 +28,13 @@ def onepiece_downloader():
     elif args.chapter:
         # Funktion für ein bestimmtes Kapitel
         chapter_number = args.chapter
-        print(f"Lade Kapitel {chapter_number}...")
+        #print(f"Lade Kapitel {chapter_number}...")
         save_chapter_as_pdf(chapter_number, get_chapter_image_urls(chapter_number))
 
     elif args.from_chapter:
         # Funktion für ab einem bestimmten Kapitel
         chapter_number = args.from_chapter
-        print(f"Lade Kapitel {chapter_number}...")
+        print(f"Beginne bei Kapitel {chapter_number}...")
         get_all_chapters(chapter_number)
 
     elif args.range:
@@ -43,7 +43,7 @@ def onepiece_downloader():
         if start > end:
             print("Startkapitel muss kleiner oder gleich Endkapitel sein.")
             return
-        print(f"Lade Kapitel {start} - {end}...")
+        #print(f"Lade Kapitel {start} - {end}...")
         get_all_chapters(start, end)
 
     else:
