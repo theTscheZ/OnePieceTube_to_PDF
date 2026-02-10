@@ -1,9 +1,19 @@
 import os
 import re
 import requests
+import colorama
 from io import BytesIO
 from PIL import Image
 from playwright.sync_api import sync_playwright
+from colorama import init, Fore, Back, Style
+
+init(autoreset=True)
+
+BASE_CHAPTER_URL = "https://onepiece.tube/manga/kapitel/"
+OUT_DIR = "pdfs"
+TIMEOUT = 30000
+MAX_404 = 5
+START_CHAPTER = 420
 
 def get_latest_chapter_number():
     with sync_playwright() as p:
@@ -14,20 +24,13 @@ def get_latest_chapter_number():
         browser.close()
         return int(value.strip()) if value and value.strip().isdigit() else None
 
-BASE_CHAPTER_URL = "https://onepiece.tube/manga/kapitel/"
-OUT_DIR = "pdfs"
-TIMEOUT = 30000
-MAX_404 = 5
-START_CHAPTER = 420
-MAX_CHAPTER = get_latest_chapter_number()
-
 def _chapter_downloaded(chapter):
     return os.path.exists(os.path.join(OUT_DIR, f"OnePiece_{chapter}.pdf"))
 
 
 def get_chapter_image_urls(chapter):
     if _chapter_downloaded(chapter):
-        print(f"Kapitel {chapter} bereits heruntergeladen.")
+        print(Fore.YELLOW + f"Kapitel {chapter} bereits heruntergeladen.")
         return []
 
     print(f"\nLade Kapitel {chapter}...")
@@ -62,11 +65,11 @@ def get_chapter_image_urls(chapter):
                 img_src = page.locator("img.img-responsive").first.get_attribute("src")
                 if img_src:
                     img_urls.append(img_src.replace(" ", "%20"))
-                    print(f"  Seite {i}: OK")
+                    print(Fore.CYAN + f"  Seite {i}: OK")
                 else:
-                    print(f"  Seite {i}: kein Bild")
+                    print(Fore.RED + f"  Seite {i}: kein Bild")
             except Exception as e:
-                print(f"  Seite {i}: Fehler ({e})")
+                print(Fore.RED + f"  Seite {i}: Fehler ({e})")
 
         browser.close()
 
@@ -86,17 +89,25 @@ def save_chapter_as_pdf(chapter_num, img_urls, out_dir=OUT_DIR):
             img = Image.open(BytesIO(r.content)).convert("RGB")
             images.append(img)
         except Exception as e:
-            print(f"Fehler bei {url}: {e}")
+            print(Fore.RED + f"Fehler bei {url}: {e}")
 
     if not images:
         return
 
     pdf_path = os.path.join(out_dir, f"OnePiece_{chapter_num}.pdf")
     images[0].save(pdf_path, save_all=True, append_images=images[1:])
-    print(f"Kapitel {chapter_num} gespeichert als PDF: {pdf_path}")
+    print(Fore.GREEN + f"Kapitel {chapter_num} gespeichert als PDF: {pdf_path}")
 
 
-def get_all_chapters(first_chapter=START_CHAPTER, last_chapter=MAX_CHAPTER):
+def get_all_chapters(first_chapter=START_CHAPTER, last_chapter=None):
+    if last_chapter is None:
+        try:
+            last_chapter = get_latest_chapter_number()
+        except Exception:
+                print(Fore.RED + "Check mal dein Internet")
+                return
+
+
     consecutive_404 = 0
 
     for chapter in range(first_chapter, last_chapter + 1):
@@ -106,7 +117,7 @@ def get_all_chapters(first_chapter=START_CHAPTER, last_chapter=MAX_CHAPTER):
             if not img_urls:
                 consecutive_404 += 1
                 if consecutive_404 >= MAX_404:
-                    print(f"{MAX_404} aufeinanderfolgende leere Kapitel – Abbruch.")
+                    print(Fore.RED + f"{MAX_404} aufeinanderfolgende leere Kapitel – Abbruch.")
                     break
                 continue
 
@@ -115,9 +126,9 @@ def get_all_chapters(first_chapter=START_CHAPTER, last_chapter=MAX_CHAPTER):
 
         except Exception as e:
             consecutive_404 += 1
-            print(f"Fehler bei Kapitel {chapter}: {e}")
+            print(Fore.RED + f"Fehler bei Kapitel {chapter}: {e}")
             if consecutive_404 >= MAX_404:
-                print(f"{MAX_404} aufeinanderfolgende Fehler – Abbruch.")
+                print(Fore.RED + f"{MAX_404} aufeinanderfolgende Fehler – Abbruch.")
                 break
 
 
