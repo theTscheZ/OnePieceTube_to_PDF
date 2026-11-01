@@ -63,3 +63,10 @@ Dieses Tool ist ausschließlich für Bildungs- und Archivierungszwecke gedacht. 
 
 Falls du Probleme hast oder Features vorschlagen willst, gerne bei mir melden.
 
+
+## Android-App: Grand Line Reader
+
+Die native Android-App liegt unter [`android/`](android/README.md): Kapitel direkt auf dem Handy
+laden, PDFs importieren/verwalten/exportieren und offline im Vollbild lesen — mit RTL-Wischgesten,
+Zoom, gespeicherter Leseposition und nahtlosen Wechseln zwischen Kapitel-PDFs.
+Build und Installation sind in der [Android-Anleitung](android/README.md) beschrieben.

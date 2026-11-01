@@ -172,3 +172,12 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Android
+.gradle/
+.idea/
+local.properties
+*.iml
+.cxx/
+
+.kotlin/
