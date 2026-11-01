@@ -12,6 +12,7 @@ auf deinem Handy. Benötigt werden JDK 17 und das Android SDK 35.
 
 ```bash
 ./gradlew testDebugUnitTest lintDebug assembleDebug
+python3 scripts/verify_apk.py app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Windows: `gradlew.bat testDebugUnitTest lintDebug assembleDebug`.
@@ -114,3 +115,12 @@ Eine APK kann eine vorhandene Installation nur aktualisieren, wenn sie mit demse
 signiert wurde. Ein neuer temporärer Debug-Schlüssel reicht dafür nicht. Signierschlüssel privat
 und dauerhaft sichern, niemals ins Repository aufnehmen. Vor einer nötigen Neuinstallation PDFs
 exportieren; eine Deinstallation entfernt die app-internen Dateien und den Lesestand.
+
+Die APK-Prüfung kontrolliert zusätzlich die Größe und internen Prüfsummen aller DEX-Code-Dateien.
+Eine gültige ZIP-Struktur und APK-Signatur allein erkennen abgeschnittenen Code nicht zuverlässig.
+Robolectric-Starttests prüfen den Activity-Start mit leerer und beschädigter lokaler PDF-Bibliothek
+sowie das Laden/Zeichnen des Launcher-Icons. Sie ersetzen keinen Test auf einem echten Gerät.
+
+Vor dem Verteilen immer die endgültige APK mit `scripts/verify_apk.py` prüfen. In synchronisierten
+Arbeitsverzeichnissen Build-Ausgaben nicht übernehmen: in einer sauberen separaten Kopie bauen,
+damit keine parallel kopierten Zwischenstände in die APK gelangen.
