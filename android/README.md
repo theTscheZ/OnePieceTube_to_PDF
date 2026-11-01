@@ -25,8 +25,9 @@ entsteht bewusst kein als erfolgreich gekennzeichnetes APK-Artefakt.
 - **+**: eine oder mehrere vorhandene PDFs importieren. Die App erstellt lokale Kopien.
 - **Kapitel laden**: neuestes Kapitel, einzelnes Kapitel, Bereich, ab einem Kapitel oder alle ab 420
   (entspricht dem Startwert des Python-Scripts). Ein Download-Auftrag gleichzeitig.
-- Die Startnummer für einzelne Kapitel und Bereiche ist die höchste vorhandene Kapitelnummer + 1;
+- Die Startnummer für „Ein Kapitel“ und „Ab Kapitel“ ist die höchste vorhandene Kapitelnummer + 1;
   ohne erkennbare Kapitel bleibt der bisherige Startwert 420. Kopierzusätze wie `(2)` werden ignoriert.
+  „Bereich“ hat separate Eingaben mit den festen Anfangswerten 420–430.
 - Downloads laufen über WorkManager mit Fortschritt und Abbruch in App/Benachrichtigung.
   Ohne Verbindung wartet der Auftrag auf Internet. Android kann Hintergrundarbeit verzögern oder beenden;
   sehr große Sammlungen daher besser in kleineren Bereichen laden. Nach einem Abbruch denselben Bereich
@@ -54,6 +55,7 @@ unabhängig von Suche oder Anzeige-Sortierung. Für eigene Dateien sinnvolle Kap
 Pinch-Zoom (1–5×), Verschieben im Zoom und Doppeltippen (Zoom/Einpassen). Im Zoom blättern Wischgesten
 nicht, damit beim Verschieben keine Seite versehentlich wechselt. Zum Blättern herauszoomen oder
 kurz tippen und die Pfeile benutzen. Einmal tippen blendet die Bedienelemente ein/aus.
+Die Kapitelnummer steht oben mittig in Akzentfarbe; das X rechts oben schließt den Reader.
 Die Seitenzahl öffnet einen direkten Seitensprung. Zurück schließt zuerst die Leisten, danach den Reader.
 Der Lesestand wird pro PDF gespeichert und beim Umbenennen mitgenommen.
 

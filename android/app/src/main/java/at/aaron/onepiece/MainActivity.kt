@@ -335,10 +335,12 @@ private fun PdfCard(file: File, savedPage: Int, onOpen: () -> Unit, onMore: () -
 private fun DownloadDialog(active: Boolean, defaultChapter: Int, onClose: () -> Unit, onStart: (String, Int, Int) -> Unit) {
     var mode by rememberSaveable { mutableStateOf("new") }
     var start by rememberSaveable { mutableStateOf(defaultChapter.toString()) }
-    var end by rememberSaveable { mutableStateOf((defaultChapter + 10).toString()) }
+    var rangeStart by rememberSaveable { mutableStateOf("420") }
+    var end by rememberSaveable { mutableStateOf("430") }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val modes = listOf("new" to "Neuestes", "single" to "Ein Kapitel", "range" to "Bereich", "from" to "Ab Kapitel", "all" to "Alle ab 420")
-    val startNumber = start.toIntOrNull() ?: 0; val endNumber = end.toIntOrNull() ?: 0
+    val displayedStart = if (mode == "range") rangeStart else start
+    val startNumber = displayedStart.toIntOrNull() ?: 0; val endNumber = end.toIntOrNull() ?: 0
     val valid = when (mode) { "new", "all" -> true; "range" -> startNumber in 1..100000 && endNumber in startNumber..100000; else -> startNumber in 1..100000 }
     AlertDialog(onDismissRequest = onClose, title = { Text("Neue Kapitel") },
         text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -348,7 +350,10 @@ private fun DownloadDialog(active: Boolean, defaultChapter: Int, onClose: () -> 
                     RadioButton(selected = mode == value, onClick = { mode = value }); Text(title)
                 }
             }
-            if (mode in listOf("single", "range", "from")) OutlinedTextField(start, { start = it.filter(Char::isDigit).take(6) },
+            if (mode in listOf("single", "range", "from")) OutlinedTextField(displayedStart, {
+                val digits = it.filter(Char::isDigit).take(6)
+                if (mode == "range") rangeStart = digits else start = digits
+            },
                 label = { Text(if (mode == "single") "Kapitel" else "Von Kapitel") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
             if (mode == "range") OutlinedTextField(end, { end = it.filter(Char::isDigit).take(6) },
                 label = { Text("Bis Kapitel") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true,
@@ -366,7 +371,8 @@ private fun DownloadDialog(active: Boolean, defaultChapter: Int, onClose: () -> 
 private fun ReaderScreen(files: List<File>, initial: File, initialPage: Int, onPosition: (File, Int) -> Unit, onClose: () -> Unit) {
     val readerSnack = remember { SnackbarHostState() }
     var chrome by rememberSaveable { mutableStateOf(false) }
-    var title by remember { mutableStateOf(initial.nameWithoutExtension) }
+    fun chapterTitle(file: File) = ReadingOrder.chapterNumber(file.name)?.let { "Kapitel $it" } ?: "Kapitel"
+    var title by remember { mutableStateOf(chapterTitle(initial)) }
     var page by remember { mutableIntStateOf(initialPage) }
     var count by remember { mutableIntStateOf(1) }
     var loading by remember { mutableStateOf(true) }
@@ -381,18 +387,20 @@ private fun ReaderScreen(files: List<File>, initial: File, initialPage: Int, onP
         AndroidView(factory = { context ->
             MangaPageView(context).apply {
                 onTap = { chrome = !chrome }
-                this.onPosition = { file, p, total -> title = file.nameWithoutExtension; page = p; count = total; currentPosition(file, p) }
+                this.onPosition = { file, p, total -> title = chapterTitle(file); page = p; count = total; currentPosition(file, p) }
                 onLoading = { loading = it }; onError = { error = it }; onBoundary = { boundary = it }
                 view = this; open(files, initial, initialPage)
             }
         }, modifier = Modifier.fillMaxSize())
         if (loading) CircularProgressIndicator(Modifier.align(Alignment.Center))
         if (chrome) {
-            Row(Modifier.fillMaxWidth().background(Ink.copy(alpha = .94f)).statusBarsPadding().align(Alignment.TopCenter).padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Zur Bibliothek") }
-                Column(Modifier.weight(1f)) {
-                    Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
+            Box(Modifier.fillMaxWidth().background(Ink.copy(alpha = .94f)).statusBarsPadding()
+                .align(Alignment.TopCenter).padding(8.dp).heightIn(min = 48.dp)) {
+                Text(title, modifier = Modifier.align(Alignment.Center).padding(horizontal = 56.dp),
+                    color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                IconButton(onClick = onClose, modifier = Modifier.align(Alignment.CenterEnd)) {
+                    Icon(Icons.Rounded.Close, "Reader schließen")
                 }
             }
             Column(Modifier.fillMaxWidth().align(Alignment.BottomCenter).background(Ink.copy(alpha = .94f)).navigationBarsPadding().padding(16.dp)) {
