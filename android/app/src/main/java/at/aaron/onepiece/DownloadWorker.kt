@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
 class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     private val client = OkHttpClient.Builder().callTimeout(45, TimeUnit.SECONDS).build()
     private fun request(url: String) = client.newCall(Request.Builder().url(url)
-        .header("User-Agent", "Mozilla/5.0 (Android) GrandLineReader/1.0")
+        .header("User-Agent", "Mozilla/5.0 (Android) OnePieceTubeReader/1.0")
         .header("Referer", ChapterSource.BASE + "/").build())
     private fun html(url: String): String = request(url).execute().use {
         if (!it.isSuccessful) throw IOException("Website antwortet mit HTTP ${it.code}")
@@ -40,7 +40,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         manager.createNotificationChannel(NotificationChannel("downloads", "Kapitel-Downloads", NotificationManager.IMPORTANCE_LOW))
         val cancel = WorkManager.getInstance(applicationContext).createCancelPendingIntent(id)
         val note = NotificationCompat.Builder(applicationContext, "downloads")
-            .setSmallIcon(android.R.drawable.stat_sys_download).setContentTitle("Grand Line Reader")
+            .setSmallIcon(android.R.drawable.stat_sys_download).setContentTitle(applicationContext.getString(R.string.app_name))
             .setContentText(text).setOngoing(true).setOnlyAlertOnce(true)
             .setProgress(total, done, total == 0).addAction(0, "Abbrechen", cancel).build()
         return if (Build.VERSION.SDK_INT >= 29) ForegroundInfo(42, note, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)

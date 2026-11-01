@@ -1,4 +1,6 @@
-# Grand Line Reader — Android
+# OnePieceTube Reader — Android
+
+Inoffizielle App für Downloads und PDF-Lesen von onepiece.tube.
 
 Native Android-App für dieses Repository, mit Kotlin, Jetpack Compose und Material 3.
 Android 8.0 (API 26) oder neuer. Kein Python, PC, Server oder Account auf dem Handy nötig.
@@ -17,7 +19,7 @@ Die installierbare Test-APK liegt danach unter `app/build/outputs/apk/debug/app-
 Es ist eine Debug-APK mit dem lokalen Debug-Schlüssel, keine für den Play Store signierte Veröffentlichung.
 
 Der GitHub-Actions-Workflow **Android APK** führt dieselben Prüfungen aus und stellt bei Erfolg
-`Grand-Line-Reader-debug-apk` als herunterladbares Artefakt bereit. Bei fehlgeschlagenen Prüfungen
+`OnePieceTube-Reader-debug-apk` als herunterladbares Artefakt bereit. Bei fehlgeschlagenen Prüfungen
 entsteht bewusst kein als erfolgreich gekennzeichnetes APK-Artefakt.
 
 ## Bedienung

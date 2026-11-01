@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -172,7 +173,7 @@ private fun ReaderApp(activity: MainActivity) {
     }
     Scaffold(containerColor = Ink, snackbarHost = { SnackbarHost(snack) },
         topBar = { TopAppBar(title = {
-            Column { Text("GRAND LINE", style = MaterialTheme.typography.labelSmall, color = Mint)
+            Column { Text(stringResource(R.string.app_name), style = MaterialTheme.typography.labelSmall, color = Mint)
                 Text("Deine Bibliothek", fontWeight = FontWeight.Bold) }
         }, actions = {
             IconButton(onClick = { importer.launch(arrayOf("application/pdf")) }, enabled = !busy) { Icon(Icons.Rounded.Add, "PDFs importieren") }
