@@ -23,4 +23,14 @@ class ReaderTest {
         assertNull(ReadingOrder.next(ReadingOrder.Position(2, 17), 18, 3, true))
         assertNull(ReadingOrder.next(ReadingOrder.Position(0, 3), 0, 3, true))
     }
+    @Test fun downloadDefaultUsesLargestChapterRatherThanDateOrNameOrder() {
+        assertEquals(501, ReadingOrder.nextChapterNumber(listOf("OnePiece_9.pdf", "OnePiece_500.pdf", "OnePiece_99.pdf")))
+    }
+    @Test fun downloadDefaultIgnoresDuplicateCopySuffixAndAcceptsImportedChapterNames() {
+        assertEquals(501, ReadingOrder.nextChapterNumber(listOf("OnePiece_0500 (2).pdf", "Kapitel 499.pdf", "498.pdf")))
+    }
+    @Test fun unrelatedPdfNumbersDoNotBecomeChapterDefaults() {
+        assertEquals(420, ReadingOrder.nextChapterNumber(listOf("Rechnung_2026.pdf", "Notizen.pdf")))
+        assertEquals(420, ReadingOrder.nextChapterNumber(emptyList()))
+    }
 }

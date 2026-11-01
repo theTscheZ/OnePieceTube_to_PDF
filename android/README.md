@@ -25,10 +25,15 @@ entsteht bewusst kein als erfolgreich gekennzeichnetes APK-Artefakt.
 - **+**: eine oder mehrere vorhandene PDFs importieren. Die App erstellt lokale Kopien.
 - **Kapitel laden**: neuestes Kapitel, einzelnes Kapitel, Bereich, ab einem Kapitel oder alle ab 420
   (entspricht dem Startwert des Python-Scripts). Ein Download-Auftrag gleichzeitig.
+- Die Startnummer für einzelne Kapitel und Bereiche ist die höchste vorhandene Kapitelnummer + 1;
+  ohne erkennbare Kapitel bleibt der bisherige Startwert 420. Kopierzusätze wie `(2)` werden ignoriert.
 - Downloads laufen über WorkManager mit Fortschritt und Abbruch in App/Benachrichtigung.
   Ohne Verbindung wartet der Auftrag auf Internet. Android kann Hintergrundarbeit verzögern oder beenden;
   sehr große Sammlungen daher besser in kleineren Bereichen laden. Nach einem Abbruch denselben Bereich
   erneut starten: fertige Dateien werden übersprungen.
+- Erfolgs-, Fehler- und Abbruchmeldungen verwenden automatisch verschwindende Material-3-Snackbars
+  (standardmäßig ca. 4 Sekunden, mit Androids Einstellung für Bedienungshilfen gegebenenfalls länger).
+  Alte Download-Ergebnisse erscheinen nach einem Neustart nicht erneut.
 - Suche nach Dateiname/Kapitel; Sortierung aufsteigend, absteigend, nach Datum oder Größe.
 - **⋮** an einer PDF: öffnen, umbenennen, teilen/extern öffnen, exportieren oder nach Bestätigung löschen.
   Export nutzt Androids Dateiauswahl. Importierte Originaldateien werden nicht verändert oder gelöscht.

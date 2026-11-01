@@ -18,6 +18,15 @@ object ReadingOrder {
         if (result != 0) result else left.size.compareTo(right.size).takeIf { it != 0 } ?: a.compareTo(b)
     }
 
+    /** Prefer the chapter number, ignoring copy suffixes such as "OnePiece_500 (2).pdf". */
+    fun nextChapterNumber(fileNames: List<String>): Int {
+        val pattern = Regex("""(?i)^(?:(?:one[ _-]*piece)[ _-]*(?:(?:kapitel|chapter)[ _-]*)?|(?:kapitel|chapter)[ _-]*)?(\d+)(?:\D|$)""")
+        val highest = fileNames.mapNotNull { name ->
+            pattern.find(name)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 1 until Int.MAX_VALUE }
+        }.maxOrNull()
+        return highest?.plus(1) ?: 420
+    }
+
     data class Position(val chapter: Int, val page: Int)
     /** Int.MAX_VALUE means the last page; the renderer clamps it after opening the PDF. */
     fun next(position: Position, pageCount: Int, chapterCount: Int, forward: Boolean): Position? {

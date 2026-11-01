@@ -52,7 +52,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.work.*
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -96,22 +95,25 @@ private fun ReaderApp(activity: MainActivity) {
     val infos by remember { workManager.getWorkInfosForUniqueWorkFlow("chapter-download") }.collectAsState(initial = emptyList())
     val work = infos.firstOrNull { !it.state.isFinished } ?: infos.lastOrNull()
     val active = work != null && !work.state.isFinished
-    // Only announce a success observed during this app session, never historical WorkManager results.
+    // Report every terminal result once, using Material's accessible snackbar duration.
+    // Historical WorkManager records never reappear when the app is opened again.
     val observedDownloads = remember { mutableSetOf<java.util.UUID>() }
-    var completedDownload by remember { mutableStateOf<java.util.UUID?>(null) }
     LaunchedEffect(work?.id, work?.state) {
         val info = work ?: return@LaunchedEffect
         if (!info.state.isFinished) {
             observedDownloads.add(info.id)
-            completedDownload = null
-        } else if (info.state == WorkInfo.State.SUCCEEDED && observedDownloads.remove(info.id)) {
-            completedDownload = info.id
-            delay(1_000)
-            completedDownload = null
+        } else if (observedDownloads.remove(info.id)) {
+            val text = if (info.state == WorkInfo.State.CANCELLED) "Download abgebrochen"
+                else info.outputData.getString("message") ?: "Download beendet"
+            snack.currentSnackbarData?.dismiss()
+            snack.showSnackbar(text, withDismissAction = true, duration = SnackbarDuration.Short)
         }
     }
     fun refresh() { files = library.files() }
-    fun message(text: String) { scope.launch { snack.showSnackbar(text) } }
+    fun message(text: String) { scope.launch {
+        snack.currentSnackbarData?.dismiss()
+        snack.showSnackbar(text, withDismissAction = true, duration = SnackbarDuration.Short)
+    } }
     fun open(file: File) { readerFiles = library.files(); readerPage = library.savedPage(file); readerName = file.name }
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
@@ -186,7 +188,7 @@ private fun ReaderApp(activity: MainActivity) {
         floatingActionButton = { ExtendedFloatingActionButton(onClick = { downloads = true }, containerColor = Mint,
             icon = { Icon(Icons.Rounded.Download, null) }, text = { Text("Kapitel laden") }) }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp).padding(top = 16.dp)) {
             OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("Kapitel oder Dateiname suchen") }, leadingIcon = { Icon(Icons.Rounded.Search, null) },
                 singleLine = true, shape = RoundedCornerShape(18.dp))
@@ -206,7 +208,7 @@ private fun ReaderApp(activity: MainActivity) {
                 }
             }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 12.dp))
-            work?.takeIf { it.state != WorkInfo.State.SUCCEEDED || completedDownload == it.id }?.let { info ->
+            work?.takeIf { !it.state.isFinished }?.let { info ->
                 Card(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
@@ -287,7 +289,7 @@ private fun ReaderApp(activity: MainActivity) {
             }) { Text("Löschen", color = MaterialTheme.colorScheme.error) } },
             dismissButton = { TextButton(onClick = { delete = null }) { Text("Behalten") } })
     }
-    if (downloads) DownloadDialog(active, onClose = { downloads = false }, onStart = { mode, start, end ->
+    if (downloads) DownloadDialog(active, ReadingOrder.nextChapterNumber(files.map { it.name }), onClose = { downloads = false }, onStart = { mode, start, end ->
         val request = OneTimeWorkRequestBuilder<DownloadWorker>()
             .setInputData(workDataOf("mode" to mode, "start" to start, "end" to end))
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build()
@@ -330,10 +332,10 @@ private fun PdfCard(file: File, savedPage: Int, onOpen: () -> Unit, onMore: () -
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DownloadDialog(active: Boolean, onClose: () -> Unit, onStart: (String, Int, Int) -> Unit) {
+private fun DownloadDialog(active: Boolean, defaultChapter: Int, onClose: () -> Unit, onStart: (String, Int, Int) -> Unit) {
     var mode by rememberSaveable { mutableStateOf("new") }
-    var start by rememberSaveable { mutableStateOf("420") }
-    var end by rememberSaveable { mutableStateOf("430") }
+    var start by rememberSaveable { mutableStateOf(defaultChapter.toString()) }
+    var end by rememberSaveable { mutableStateOf((defaultChapter + 10).toString()) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val modes = listOf("new" to "Neuestes", "single" to "Ein Kapitel", "range" to "Bereich", "from" to "Ab Kapitel", "all" to "Alle ab 420")
     val startNumber = start.toIntOrNull() ?: 0; val endNumber = end.toIntOrNull() ?: 0
@@ -362,6 +364,7 @@ private fun DownloadDialog(active: Boolean, onClose: () -> Unit, onStart: (Strin
 
 @Composable
 private fun ReaderScreen(files: List<File>, initial: File, initialPage: Int, onPosition: (File, Int) -> Unit, onClose: () -> Unit) {
+    val readerSnack = remember { SnackbarHostState() }
     var chrome by rememberSaveable { mutableStateOf(false) }
     var title by remember { mutableStateOf(initial.nameWithoutExtension) }
     var page by remember { mutableIntStateOf(initialPage) }
@@ -401,6 +404,8 @@ private fun ReaderScreen(files: List<File>, initial: File, initialPage: Int, onP
                 }
             }
         }
+        SnackbarHost(readerSnack, Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
+            .padding(bottom = if (chrome) 140.dp else 16.dp))
     }
     if (jump) AlertDialog(onDismissRequest = { jump = false }, title = { Text("Zu Seite springen") },
         text = { OutlinedTextField(pageInput, { pageInput = it.filter(Char::isDigit).take(6) }, label = { Text("Seite (1–$count)") },
@@ -408,11 +413,19 @@ private fun ReaderScreen(files: List<File>, initial: File, initialPage: Int, onP
         confirmButton = { TextButton(enabled = (pageInput.toIntOrNull() ?: 0) in 1..count, onClick = {
             view?.jumpToPage(pageInput.toInt() - 1); jump = false
         }) { Text("Öffnen") } }, dismissButton = { TextButton(onClick = { jump = false }) { Text("Abbrechen") } })
-    error?.let { text -> AlertDialog(onDismissRequest = { error = null }, title = { Text("PDF nicht lesbar") }, text = { Text(text) },
-        confirmButton = { TextButton(onClick = onClose) { Text("Zur Bibliothek") } },
-        dismissButton = { TextButton(onClick = { error = null; view?.skipChapter() }) { Text("Nächstes PDF") } }) }
-    boundary?.let { text -> AlertDialog(onDismissRequest = { boundary = null }, title = { Text(text) },
-        text = { Text("Du kannst weitere Kapitel in der Bibliothek importieren oder herunterladen.") },
-        confirmButton = { TextButton(onClick = { boundary = null }) { Text("Weiterlesen") } },
-        dismissButton = { TextButton(onClick = onClose) { Text("Bibliothek") } }) }
+    LaunchedEffect(error) {
+        val text = error ?: return@LaunchedEffect
+        chrome = true
+        readerSnack.currentSnackbarData?.dismiss()
+        val result = readerSnack.showSnackbar(text, actionLabel = "Nächstes PDF", withDismissAction = true,
+            duration = SnackbarDuration.Short)
+        error = null
+        if (result == SnackbarResult.ActionPerformed) view?.skipChapter()
+    }
+    LaunchedEffect(boundary) {
+        val text = boundary ?: return@LaunchedEffect
+        readerSnack.currentSnackbarData?.dismiss()
+        readerSnack.showSnackbar(text, withDismissAction = true, duration = SnackbarDuration.Short)
+        boundary = null
+    }
 }
