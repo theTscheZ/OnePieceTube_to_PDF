@@ -27,7 +27,7 @@ entsteht bewusst kein als erfolgreich gekennzeichnetes APK-Artefakt.
 
 - **+**: eine oder mehrere vorhandene PDFs importieren. Die App erstellt lokale Kopien.
 - **Kapitel laden**: neuestes Kapitel, einzelnes Kapitel, Bereich, ab einem Kapitel oder alle ab 420
-  (entspricht dem Startwert des Python-Scripts). Ein Download-Auftrag gleichzeitig.
+  als Startwert. Ein Download-Auftrag gleichzeitig.
 - Die Startnummer für „Ein Kapitel“ und „Ab Kapitel“ ist die höchste vorhandene Kapitelnummer + 1;
   ohne erkennbare Kapitel bleibt der bisherige Startwert 420. Kopierzusätze wie `(2)` werden ignoriert.
   „Bereich“ hat separate Eingaben mit den festen Anfangswerten 420–430.
@@ -69,15 +69,13 @@ Die Kapitelnummer steht oben mittig in Akzentfarbe; das X rechts oben schließt 
 Die Seitenzahl öffnet einen direkten Seitensprung. Zurück schließt zuerst die Leisten, danach den Reader.
 Der Lesestand wird pro PDF gespeichert und beim Umbenennen mitgenommen.
 
-## Verhältnis zum Python-Script
+## Download und PDF-Erstellung
 
-`onepiece_downloader.py` und `scraper.py` bleiben unverändert nutzbar. Die App führt nicht die Python-Datei aus,
-sondern implementiert dieselben Download-Modi nativ. Grund: Playwright/Chromium ist keine geeignete
-Android-Laufzeit. Zukünftige Änderungen an Python und Android müssen entsprechend getrennt gepflegt werden.
+Die App implementiert alle Download-Modi nativ in Kotlin und benötigt keine Python-Laufzeit.
 
 Die Website liefert aktuell `window.__data` mit `chapter.pages` und `categoryEntries`. Die App liest
 Seitenadressen und Kapitelnummern daraus, ohne JavaScript auszuführen. Als Fallback unterstützt sie die
-alten DOM-Selektoren des Scripts. Es werden keine Bildadressen geraten, und Bild-Reihenfolge/Doppelseiten
+älteren HTML-Seitenstrukturen. Es werden keine Bildadressen geraten, und Bild-Reihenfolge/Doppelseiten
 bleiben erhalten. Ändert die Website ihre Struktur oder blockiert Zugriffe, zeigt die App einen Fehler.
 
 Die PDF-Erstellung schreibt Seiten einzeln auf die Festplatte, damit nicht ein ganzes Kapitel als
