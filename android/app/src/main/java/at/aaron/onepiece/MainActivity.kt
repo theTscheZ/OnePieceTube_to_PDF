@@ -52,6 +52,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.work.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -95,6 +96,20 @@ private fun ReaderApp(activity: MainActivity) {
     val infos by remember { workManager.getWorkInfosForUniqueWorkFlow("chapter-download") }.collectAsState(initial = emptyList())
     val work = infos.firstOrNull { !it.state.isFinished } ?: infos.lastOrNull()
     val active = work != null && !work.state.isFinished
+    // Only announce a success observed during this app session, never historical WorkManager results.
+    val observedDownloads = remember { mutableSetOf<java.util.UUID>() }
+    var completedDownload by remember { mutableStateOf<java.util.UUID?>(null) }
+    LaunchedEffect(work?.id, work?.state) {
+        val info = work ?: return@LaunchedEffect
+        if (!info.state.isFinished) {
+            observedDownloads.add(info.id)
+            completedDownload = null
+        } else if (info.state == WorkInfo.State.SUCCEEDED && observedDownloads.remove(info.id)) {
+            completedDownload = info.id
+            delay(1_000)
+            completedDownload = null
+        }
+    }
     fun refresh() { files = library.files() }
     fun message(text: String) { scope.launch { snack.showSnackbar(text) } }
     fun open(file: File) { readerFiles = library.files(); readerPage = library.savedPage(file); readerName = file.name }
@@ -172,8 +187,6 @@ private fun ReaderApp(activity: MainActivity) {
             icon = { Icon(Icons.Rounded.Download, null) }, text = { Text("Kapitel laden") }) }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
-            Text("${files.size} PDFs · Offline lesen · Rechts → links", color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 16.dp))
             OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("Kapitel oder Dateiname suchen") }, leadingIcon = { Icon(Icons.Rounded.Search, null) },
                 singleLine = true, shape = RoundedCornerShape(18.dp))
@@ -193,7 +206,7 @@ private fun ReaderApp(activity: MainActivity) {
                 }
             }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 12.dp))
-            work?.let { info ->
+            work?.takeIf { it.state != WorkInfo.State.SUCCEEDED || completedDownload == it.id }?.let { info ->
                 Card(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
@@ -206,9 +219,7 @@ private fun ReaderApp(activity: MainActivity) {
                             Text(status, style = MaterialTheme.typography.bodySmall)
                             if (active) {
                                 Spacer(Modifier.height(8.dp))
-                                val total = info.progress.getInt("total", 0)
-                                if (total > 0) LinearProgressIndicator(progress = { info.progress.getInt("done", 0).toFloat() / total }, modifier = Modifier.fillMaxWidth())
-                                else LinearProgressIndicator(Modifier.fillMaxWidth())
+                                LinearProgressIndicator(Modifier.fillMaxWidth())
                             }
                         }
                         if (active) IconButton(onClick = { workManager.cancelUniqueWork("chapter-download") }) { Icon(Icons.Rounded.Close, "Download abbrechen") }
@@ -379,7 +390,6 @@ private fun ReaderScreen(files: List<File>, initial: File, initialPage: Int, onP
                 IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Zur Bibliothek") }
                 Column(Modifier.weight(1f)) {
                     Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
-                    Text("Rechts wischen → nächste Seite", style = MaterialTheme.typography.labelSmall, color = Mint)
                 }
             }
             Column(Modifier.fillMaxWidth().align(Alignment.BottomCenter).background(Ink.copy(alpha = .94f)).navigationBarsPadding().padding(16.dp)) {
