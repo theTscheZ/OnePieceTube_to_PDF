@@ -2,6 +2,14 @@
 
 Ein CLI-Tool zum Herunterladen von One Piece Manga-Kapiteln als PDF direkt von [onepiece.tube](https://onepiece.tube).
 
+## Android-App herunterladen
+
+**[OnePieceTube Reader 1.0.6 – APK direkt herunterladen](https://github.com/theTscheZ/OnePieceTube_to_PDF/releases/download/v1.0.6/OnePieceTube-Reader-1.0.6.apk)**
+
+Ab Android 8.0: APK auf dem Handy herunterladen und öffnen. Falls Android nachfragt, die Installation für den verwendeten Browser oder Dateimanager erlauben.
+
+[Alle Versionen und Release-Informationen](https://github.com/theTscheZ/OnePieceTube_to_PDF/releases)
+
 ## Features
 - Lade einzelne oder mehrere One Piece Manga-Kapitel als PDF herunter.
 - Unterstützt unter anderem das neueste Kapitel, bestimmte Kapitel oder eine Kapitel-Range
