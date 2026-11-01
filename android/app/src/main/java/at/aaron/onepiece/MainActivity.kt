@@ -16,6 +16,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,12 +33,19 @@ import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -86,6 +94,11 @@ private fun ReaderApp(activity: MainActivity) {
     var sort by rememberSaveable { mutableIntStateOf(0) }
     var showSort by remember { mutableStateOf(false) }
     var downloads by rememberSaveable { mutableStateOf(false) }
+    var editing by rememberSaveable { mutableStateOf(false) }
+    var selectedNames by rememberSaveable(stateSaver = listSaver<Set<String>, String>(
+        save = { it.toList() }, restore = { it.toSet() }
+    )) { mutableStateOf(emptySet<String>()) }
+    var pendingBulkDelete by remember { mutableStateOf<List<File>?>(null) }
     var actionFile by remember { mutableStateOf<File?>(null) }
     var rename by remember { mutableStateOf<File?>(null) }
     var newName by remember { mutableStateOf("") }
@@ -116,6 +129,9 @@ private fun ReaderApp(activity: MainActivity) {
         snack.showSnackbar(text, withDismissAction = true, duration = SnackbarDuration.Short)
     } }
     fun open(file: File) { readerFiles = library.files(); readerPage = library.savedPage(file); readerName = file.name }
+    fun leaveSelection() { editing = false; selectedNames = emptySet(); pendingBulkDelete = null }
+    BackHandler(enabled = editing && readerName == null) { if (!busy) leaveSelection() }
+    LaunchedEffect(files) { selectedNames = selectedNames.intersect(files.map { it.name }.toSet()) }
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) refresh() }
@@ -172,7 +188,23 @@ private fun ReaderApp(activity: MainActivity) {
         }
     }
     Scaffold(containerColor = Ink, snackbarHost = { SnackbarHost(snack) },
-        topBar = { TopAppBar(title = {
+        topBar = { if (editing) TopAppBar(
+            title = { Text("${selectedNames.size} ausgewählt", maxLines = 1) },
+            navigationIcon = { IconButton(onClick = { leaveSelection() }, enabled = !busy) {
+                Icon(Icons.Rounded.Close, "Auswahlmodus verlassen")
+            } },
+            actions = {
+                val allSelected = visible.isNotEmpty() && visible.all { it.name in selectedNames }
+                IconButton(enabled = !busy && visible.isNotEmpty(), onClick = {
+                    val names = visible.map { it.name }.toSet()
+                    selectedNames = if (allSelected) selectedNames - names else selectedNames + names
+                }) { Icon(if (allSelected) Icons.Rounded.Deselect else Icons.Rounded.SelectAll,
+                    if (allSelected) "Alle angezeigten Kapitel abwählen" else "Alle angezeigten Kapitel auswählen") }
+                IconButton(enabled = !busy && selectedNames.isNotEmpty(), onClick = {
+                    pendingBulkDelete = files.filter { it.name in selectedNames }
+                }) { Icon(Icons.Rounded.DeleteOutline, "Ausgewählte Kapitel löschen") }
+            }
+        ) else TopAppBar(title = {
             Column { Text(stringResource(R.string.app_name), style = MaterialTheme.typography.labelSmall, color = Mint)
                 Text("Deine Bibliothek", fontWeight = FontWeight.Bold) }
         }, actions = {
@@ -186,16 +218,16 @@ private fun ReaderApp(activity: MainActivity) {
                 }
             }
         }) },
-        floatingActionButton = { ExtendedFloatingActionButton(onClick = { downloads = true }, containerColor = Mint,
+        floatingActionButton = { if (!editing) ExtendedFloatingActionButton(onClick = { downloads = true }, containerColor = Mint,
             icon = { Icon(Icons.Rounded.Download, null) }, text = { Text("Kapitel laden") }) }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp).padding(top = 16.dp)) {
             OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Kapitel oder Dateiname suchen") }, leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                enabled = !editing && !busy, placeholder = { Text("Kapitel oder Dateiname suchen") }, leadingIcon = { Icon(Icons.Rounded.Search, null) },
                 singleLine = true, shape = RoundedCornerShape(18.dp))
             Spacer(Modifier.height(16.dp))
             library.lastFile()?.let { last ->
-                Card(onClick = { open(last) }, colors = CardDefaults.cardColors(containerColor = Color(0xFF163D36)),
+                Card(onClick = { open(last) }, enabled = !editing && !busy, colors = CardDefaults.cardColors(containerColor = Color(0xFF163D36)),
                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.AutoStories, null, tint = Mint)
@@ -240,13 +272,32 @@ private fun ReaderApp(activity: MainActivity) {
                         modifier = Modifier.padding(top = 8.dp))
                     if (files.isEmpty()) TextButton(onClick = { importer.launch(arrayOf("application/pdf")) }) { Text("PDFs importieren") }
                 }
-            } else LazyVerticalGrid(columns = GridCells.Adaptive(148.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 100.dp)) {
-                items(visible, key = { it.name }) { file ->
-                    PdfCard(file, library.savedPage(file), onOpen = { open(file) }, onMore = { actionFile = file })
-                }
-            }
+            } else ChapterGrid(
+                files = visible, selected = selectedNames, editing = editing, enabled = !busy,
+                savedPage = { library.savedPage(it) }, onOpen = { open(it) }, onMore = { actionFile = it },
+                onStartSelection = { editing = true }, onSelection = { selectedNames = it }
+            )
         }
+    }
+    pendingBulkDelete?.let { targets ->
+        AlertDialog(onDismissRequest = { if (!busy) pendingBulkDelete = null },
+            title = { Text("${targets.size} Kapitel löschen?") },
+            text = { Text("Die ausgewählten PDFs werden aus der App entfernt. Ursprünglich importierte Dateien bleiben erhalten.") },
+            confirmButton = { TextButton(enabled = !busy, onClick = {
+                busy = true
+                scope.launch {
+                    val failures = withContext(Dispatchers.IO) {
+                        targets.filter { file -> runCatching { library.delete(file) }.isFailure }
+                    }
+                    val removed = targets.size - failures.size
+                    refresh(); busy = false; pendingBulkDelete = null
+                    if (failures.isEmpty()) leaveSelection()
+                    else selectedNames = failures.map { it.name }.toSet()
+                    message(if (failures.isEmpty()) "$removed Kapitel gelöscht"
+                        else "$removed gelöscht · ${failures.size} konnten nicht gelöscht werden")
+                }
+            }) { Text("Löschen", color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(enabled = !busy, onClick = { pendingBulkDelete = null }) { Text("Abbrechen") } })
     }
     actionFile?.let { file ->
         AlertDialog(onDismissRequest = { actionFile = null }, title = { Text(file.nameWithoutExtension) },
@@ -300,7 +351,8 @@ private fun ReaderApp(activity: MainActivity) {
 }
 
 @Composable
-private fun PdfCard(file: File, savedPage: Int, onOpen: () -> Unit, onMore: () -> Unit) {
+internal fun PdfCard(file: File, savedPage: Int, onOpen: () -> Unit, onMore: () -> Unit,
+    editing: Boolean = false, isSelected: Boolean = false, onLongPress: () -> Unit = {}) {
     val cover by produceState<Bitmap?>(null, file.path, file.lastModified()) {
         value = withContext(Dispatchers.IO) { runCatching {
             ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd -> PdfRenderer(fd).use { pdf ->
@@ -313,10 +365,26 @@ private fun PdfCard(file: File, savedPage: Int, onOpen: () -> Unit, onMore: () -
             } }
         }.getOrNull() }
     }
-    Card(onClick = onOpen, shape = RoundedCornerShape(18.dp)) {
+    Card(shape = RoundedCornerShape(18.dp),
+        border = if (isSelected) BorderStroke(2.dp, Mint) else null,
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            role = if (editing) Role.Checkbox else Role.Button
+            if (editing) selected = isSelected
+            onClick(if (editing) "Auswahl ändern" else "Kapitel öffnen") { onOpen(); true }
+            onLongClick("Kapitel auswählen") { onLongPress(); true }
+        }) {
         Box(Modifier.fillMaxWidth().height(174.dp).background(Color(0xFF273338)), contentAlignment = Alignment.Center) {
             cover?.let { Image(it.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
                 ?: Icon(Icons.Rounded.PictureAsPdf, null, tint = Mint, modifier = Modifier.size(40.dp))
+            if (editing) {
+                if (isSelected) Box(Modifier.fillMaxSize().background(Mint.copy(alpha = .18f)))
+                Surface(Modifier.align(Alignment.TopEnd).padding(8.dp), shape = RoundedCornerShape(50),
+                    color = Ink.copy(alpha = .9f)) {
+                    Icon(if (isSelected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                        if (isSelected) "Ausgewählt" else "Nicht ausgewählt", tint = Mint,
+                        modifier = Modifier.padding(4.dp).size(24.dp))
+                }
+            }
             if (savedPage > 0) Surface(Modifier.align(Alignment.BottomStart).padding(8.dp), shape = RoundedCornerShape(8.dp), color = Ink.copy(alpha = .9f)) {
                 Text("Seite ${savedPage + 1}", Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall)
             }
@@ -326,7 +394,8 @@ private fun PdfCard(file: File, savedPage: Int, onOpen: () -> Unit, onMore: () -
                 Text(file.nameWithoutExtension, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
                 Text(String.format(java.util.Locale.GERMAN, "%.1f MB", file.length() / 1048576.0), style = MaterialTheme.typography.labelSmall, color = Mint)
             }
-            IconButton(onClick = onMore) { Icon(Icons.Rounded.MoreVert, "Aktionen für ${file.name}") }
+            if (!editing) IconButton(onClick = onMore) { Icon(Icons.Rounded.MoreVert, "Aktionen für ${file.name}") }
+            else Spacer(Modifier.width(48.dp).height(48.dp))
         }
     }
 }

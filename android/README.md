@@ -37,6 +37,13 @@ entsteht bewusst kein als erfolgreich gekennzeichnetes APK-Artefakt.
 - Erfolgs-, Fehler- und Abbruchmeldungen verwenden automatisch verschwindende Material-3-Snackbars
   (standardmäßig ca. 4 Sekunden, mit Androids Einstellung für Bedienungshilfen gegebenenfalls länger).
   Alte Download-Ergebnisse erscheinen nach einem Neustart nicht erneut.
+- Kapitel lange drücken: Auswahlmodus. Antippen wählt einzelne Kapitel aus/ab.
+  Nach dem langen Drücken gedrückt halten und über Kapitel wischen: zusammenhängenden Bereich auswählen;
+  beim Zurückwischen wird der Bereich wieder kleiner. Start auf einem ausgewählten Kapitel wählt den
+  gewischten Bereich ab. Am oberen/unteren Listenrand scrollt die Liste automatisch, zum Rand hin schneller.
+  Die Leiste bietet X/Android-Zurück zum Verlassen, alle angezeigten Kapitel auswählen/abwählen (auch außerhalb
+  des Bildschirms, unter Berücksichtigung der aktuellen Suche) und Löschen nach einer Bestätigung.
+  Importierte Originaldateien bleiben erhalten. Fehlgeschlagene Löschungen bleiben ausgewählt.
 - Suche nach Dateiname/Kapitel; Sortierung aufsteigend, absteigend, nach Datum oder Größe.
 - **⋮** an einer PDF: öffnen, umbenennen, teilen/extern öffnen, exportieren oder nach Bestätigung löschen.
   Export nutzt Androids Dateiauswahl. Importierte Originaldateien werden nicht verändert oder gelöscht.
@@ -100,3 +107,10 @@ Manuelle Geräteprüfung vor einer Veröffentlichung:
 Der Reader rendert nur eine Seite gleichzeitig auf einem Hintergrund-Thread, mit begrenzter
 Bitmap-Auflösung (maximal 2400 × 3200). Zoom vergrößert diese Bitmap; es ist kein unbegrenztes
 Vektor-Neurendern. Keine Seitenbearbeitung wie Zusammenführen, Ausschneiden oder Neuordnen innerhalb einer PDF.
+
+## Signierung von Updates
+
+Eine APK kann eine vorhandene Installation nur aktualisieren, wenn sie mit demselben Schlüssel
+signiert wurde. Ein neuer temporärer Debug-Schlüssel reicht dafür nicht. Signierschlüssel privat
+und dauerhaft sichern, niemals ins Repository aufnehmen. Vor einer nötigen Neuinstallation PDFs
+exportieren; eine Deinstallation entfernt die app-internen Dateien und den Lesestand.
