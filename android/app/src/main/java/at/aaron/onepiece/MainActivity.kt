@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
@@ -67,26 +68,55 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 private val Ink = Color(0xFF101416)
-private val Mint = Color(0xFF77DBC8)
-private val Scheme = darkColorScheme(primary = Mint, onPrimary = Color(0xFF00382F), background = Ink,
-    surface = Color(0xFF192024), surfaceVariant = Color(0xFF253035), secondary = Color(0xFFD9C3A0))
+private val AccentColor: Color @Composable get() = MaterialTheme.colorScheme.primary
 
 class MainActivity : ComponentActivity() {
+    var notificationChapter by mutableStateOf<String?>(null)
+        private set
+    fun consumeChapter() { notificationChapter = null }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        notificationChapter = intent.getStringExtra(AutoUpdates.OPEN_CHAPTER)
+        intent.removeExtra(AutoUpdates.OPEN_CHAPTER)
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { MaterialTheme(colorScheme = Scheme) { ReaderApp(this) } }
+        notificationChapter = intent.getStringExtra(AutoUpdates.OPEN_CHAPTER)
+        intent.removeExtra(AutoUpdates.OPEN_CHAPTER)
+        val settings = AppSettings(this)
+        AutoUpdates.schedule(this)
+        setContent { ReaderTheme(settings) { ReaderApp(this, settings) } }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ReaderApp(activity: MainActivity) {
+private fun ReaderApp(activity: MainActivity, settings: AppSettings) {
     val context = LocalContext.current
     val library = remember { Library(context) }
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
     var files by remember { mutableStateOf(library.files()) }
+    var libraryRevision by remember { mutableIntStateOf(0) }
+    var filter by rememberSaveable { mutableStateOf<String?>(null) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    var notificationsAllowed by remember { mutableStateOf(androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        notificationsAllowed = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+    fun requestNotifications() {
+        if (Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(context,
+                Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
+            !settings.prefs.getBoolean("notificationPermissionRequested", false)) {
+            settings.prefs.edit().putBoolean("notificationPermissionRequested", true).apply()
+            permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
+        }
+    }
+    var readerSession by remember { mutableIntStateOf(0) }
     var readerName by rememberSaveable { mutableStateOf<String?>(null) }
     var readerPage by rememberSaveable { mutableIntStateOf(0) }
     var readerFiles by remember { mutableStateOf<List<File>>(emptyList()) }
@@ -123,12 +153,18 @@ private fun ReaderApp(activity: MainActivity) {
             snack.showSnackbar(text, withDismissAction = true, duration = SnackbarDuration.Short)
         }
     }
-    fun refresh() { files = library.files() }
+    fun refresh() { files = library.files(); libraryRevision++; notificationsAllowed = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled() }
     fun message(text: String) { scope.launch {
         snack.currentSnackbarData?.dismiss()
         snack.showSnackbar(text, withDismissAction = true, duration = SnackbarDuration.Short)
     } }
-    fun open(file: File) { readerFiles = library.files(); readerPage = library.savedPage(file); readerName = file.name }
+    fun open(file: File) { readerSession++; readerFiles = library.files(); readerPage = library.savedPage(file); readerName = file.name }
+    LaunchedEffect(activity.notificationChapter) {
+        val name = activity.notificationChapter ?: return@LaunchedEffect
+        val file = library.files().find { it.name == name }
+        if (file != null) { showSettings = false; open(file) } else message("Kapitel ist nicht mehr in der Bibliothek")
+        activity.consumeChapter()
+    }
     fun leaveSelection() { editing = false; selectedNames = emptySet(); pendingBulkDelete = null }
     BackHandler(enabled = editing && readerName == null) { if (!busy) leaveSelection() }
     LaunchedEffect(files) { selectedNames = selectedNames.intersect(files.map { it.name }.toSet()) }
@@ -172,14 +208,30 @@ private fun ReaderApp(activity: MainActivity) {
     if (readerName != null) {
         val ordered = if (readerFiles.isEmpty()) files else readerFiles
         val file = ordered.find { it.name == readerName }
-        if (file != null) ReaderScreen(ordered, file, readerPage,
-            onPosition = { f, page -> library.savePage(f, page); readerName = f.name; readerPage = page },
-            onClose = { readerName = null; refresh() })
+        if (file != null) key(readerSession) {
+            ReaderScreen(ordered, file, readerPage,
+                onPosition = { f, page, total -> library.savePage(f, page, total); readerName = f.name; readerPage = page },
+                onClose = { readerName = null; refresh() })
+        }
         else LaunchedEffect(Unit) { readerName = null }
         return
     }
-    val visible = remember(files, query, sort) {
-        val filtered = files.filter { it.name.contains(query, ignoreCase = true) }
+    if (showSettings) {
+        SettingsScreen(settings, onClose = { showSettings = false }, notificationsAllowed = notificationsAllowed,
+            onNotifications = { requestNotifications() }, onAutomaticChange = { enabled, wifi ->
+                val wasEnabled = settings.keepCurrent
+                if (enabled && !wasEnabled) {
+                    files.mapNotNull { ReadingOrder.chapterNumber(it.name) }.maxOrNull()?.let(settings::rememberDownloaded)
+                }
+                if (settings.wifiOnly != wifi) workManager.cancelAllWorkByTag(AutoUpdates.TAG)
+                settings.keepCurrent = enabled; settings.wifiOnly = wifi
+                AutoUpdates.schedule(context)
+                if (enabled && !wasEnabled && !notificationsAllowed) requestNotifications()
+            })
+        return
+    }
+    val visible = remember(files, query, sort, filter, libraryRevision) {
+        val filtered = files.filter { it.name.contains(query, ignoreCase = true) && (filter == null || library.status(it).name == filter) }
         when (sort) {
             1 -> filtered.reversed()
             2 -> filtered.sortedByDescending { it.lastModified() }
@@ -205,9 +257,10 @@ private fun ReaderApp(activity: MainActivity) {
                 }) { Icon(Icons.Rounded.DeleteOutline, "Ausgewählte Kapitel löschen") }
             }
         ) else TopAppBar(title = {
-            Column { Text(stringResource(R.string.app_name), style = MaterialTheme.typography.labelSmall, color = Mint)
-                Text("Deine Bibliothek", fontWeight = FontWeight.Bold) }
+            Column { Text(stringResource(R.string.app_name), style = MaterialTheme.typography.labelSmall, color = AccentColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Deine Bibliothek", fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }, actions = {
+            IconButton(onClick = { showSettings = true }) { Icon(Icons.Rounded.Settings, "Einstellungen") }
             IconButton(onClick = { importer.launch(arrayOf("application/pdf")) }, enabled = !busy) { Icon(Icons.Rounded.Add, "PDFs importieren") }
             Box {
                 IconButton(onClick = { showSort = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Sortieren") }
@@ -215,31 +268,44 @@ private fun ReaderApp(activity: MainActivity) {
                     listOf("Kapitel aufsteigend", "Kapitel absteigend", "Zuletzt hinzugefügt", "Größte zuerst").forEachIndexed { i, name ->
                         DropdownMenuItem(text = { Text(if (sort == i) "✓ $name" else name) }, onClick = { sort = i; showSort = false })
                     }
+                    HorizontalDivider()
+                    DropdownMenuItem(text = { Text("Gelesene Kapitel löschen") }, enabled = files.any { library.status(it) == ReadStatus.READ },
+                        leadingIcon = { Icon(Icons.Rounded.DeleteOutline, null) }, onClick = {
+                            showSort = false; pendingBulkDelete = files.filter { library.status(it) == ReadStatus.READ }
+                        })
                 }
             }
         }) },
-        floatingActionButton = { if (!editing) ExtendedFloatingActionButton(onClick = { downloads = true }, containerColor = Mint,
+        floatingActionButton = { if (!editing) ExtendedFloatingActionButton(onClick = { downloads = true }, containerColor = AccentColor,
             icon = { Icon(Icons.Rounded.Download, null) }, text = { Text("Kapitel laden") }) }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp).padding(top = 16.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = Space.medium).padding(top = Space.medium)) {
             OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
                 enabled = !editing && !busy, placeholder = { Text("Kapitel oder Dateiname suchen") }, leadingIcon = { Icon(Icons.Rounded.Search, null) },
-                singleLine = true, shape = RoundedCornerShape(18.dp))
+                singleLine = true, shape = RoundedCornerShape(Space.medium))
             Spacer(Modifier.height(16.dp))
             library.lastFile()?.let { last ->
-                Card(onClick = { open(last) }, enabled = !editing && !busy, colors = CardDefaults.cardColors(containerColor = Color(0xFF163D36)),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                Card(onClick = { open(last) }, enabled = !editing && !busy, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = Space.medium)) {
                     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.AutoStories, null, tint = Mint)
-                        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-                            Text("WEITERLESEN", style = MaterialTheme.typography.labelSmall, color = Mint)
+                        Icon(Icons.Rounded.AutoStories, null, tint = AccentColor)
+                        Column(Modifier.weight(1f).padding(horizontal = Space.medium)) {
+                            Text("WEITERLESEN", style = MaterialTheme.typography.labelSmall, color = AccentColor)
                             Text(last.nameWithoutExtension, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
                             Text("Seite ${library.savedPage(last) + 1}", style = MaterialTheme.typography.bodySmall)
                         }
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = Mint)
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = AccentColor)
                     }
                 }
             }
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.small)) {
+                FilterChip(selected = filter == null, onClick = { filter = null }, enabled = !editing && !busy, label = { Text("Alle") })
+                ReadStatus.entries.forEach { state ->
+                    FilterChip(selected = filter == state.name, onClick = { filter = state.name }, enabled = !editing && !busy,
+                        label = { Text(state.label) })
+                }
+            }
+            Spacer(Modifier.height(Space.small))
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 12.dp))
             work?.takeIf { !it.state.isFinished }?.let { info ->
                 Card(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
@@ -264,17 +330,17 @@ private fun ReaderApp(activity: MainActivity) {
             if (visible.isEmpty()) {
                 Column(Modifier.weight(1f).fillMaxWidth().padding(bottom = 88.dp), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center) {
-                    Icon(Icons.Rounded.AutoStories, null, tint = Mint, modifier = Modifier.size(56.dp))
+                    Icon(Icons.Rounded.AutoStories, null, tint = AccentColor, modifier = Modifier.size(56.dp))
                     Spacer(Modifier.height(16.dp))
                     Text(if (files.isEmpty()) "Dein nächstes Kapitel wartet." else "Keine Treffer", style = MaterialTheme.typography.titleMedium)
                     Text(if (files.isEmpty()) "Importiere deine PDFs oder lade Kapitel direkt."
-                        else "Versuche einen anderen Suchbegriff.", style = MaterialTheme.typography.bodySmall,
+                        else "Ändere den Filter oder Suchbegriff.", style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 8.dp))
                     if (files.isEmpty()) TextButton(onClick = { importer.launch(arrayOf("application/pdf")) }) { Text("PDFs importieren") }
                 }
             } else ChapterGrid(
                 files = visible, selected = selectedNames, editing = editing, enabled = !busy,
-                savedPage = { library.savedPage(it) }, onOpen = { open(it) }, onMore = { actionFile = it },
+                savedPage = { library.savedPage(it) }, readStatus = { library.status(it) }, onOpen = { open(it) }, onMore = { actionFile = it },
                 onStartSelection = { editing = true }, onSelection = { selectedNames = it }
             )
         }
@@ -323,6 +389,11 @@ private fun ReaderApp(activity: MainActivity) {
                     }.onFailure { message("Kein externer PDF-Reader verfügbar. Nutze den internen Reader.") }
                 }) { Text("Extern öffnen") }
                 TextButton(onClick = { exportFile = file; actionFile = null; exporter.launch(file.name) }) { Text("PDF exportieren") }
+                ReadStatus.entries.forEach { state ->
+                    TextButton(onClick = { library.markStatus(file, state); actionFile = null; refresh() }) {
+                        Text("Als ${state.label.lowercase()} markieren")
+                    }
+                }
                 TextButton(onClick = { delete = file; actionFile = null }) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
             } }, confirmButton = { TextButton(onClick = { actionFile = null }) { Text("Schließen") } })
     }
@@ -351,7 +422,7 @@ private fun ReaderApp(activity: MainActivity) {
 }
 
 @Composable
-internal fun PdfCard(file: File, savedPage: Int, onOpen: () -> Unit, onMore: () -> Unit,
+internal fun PdfCard(file: File, savedPage: Int, readStatus: ReadStatus, onOpen: () -> Unit, onMore: () -> Unit,
     editing: Boolean = false, isSelected: Boolean = false, onLongPress: () -> Unit = {}) {
     val cover by produceState<Bitmap?>(null, file.path, file.lastModified()) {
         value = withContext(Dispatchers.IO) { runCatching {
@@ -365,8 +436,8 @@ internal fun PdfCard(file: File, savedPage: Int, onOpen: () -> Unit, onMore: () 
             } }
         }.getOrNull() }
     }
-    Card(shape = RoundedCornerShape(18.dp),
-        border = if (isSelected) BorderStroke(2.dp, Mint) else null,
+    Card(shape = RoundedCornerShape(Space.medium),
+        border = if (isSelected) BorderStroke(2.dp, AccentColor) else null,
         modifier = Modifier.semantics(mergeDescendants = true) {
             role = if (editing) Role.Checkbox else Role.Button
             if (editing) selected = isSelected
@@ -375,24 +446,24 @@ internal fun PdfCard(file: File, savedPage: Int, onOpen: () -> Unit, onMore: () 
         }) {
         Box(Modifier.fillMaxWidth().height(174.dp).background(Color(0xFF273338)), contentAlignment = Alignment.Center) {
             cover?.let { Image(it.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
-                ?: Icon(Icons.Rounded.PictureAsPdf, null, tint = Mint, modifier = Modifier.size(40.dp))
+                ?: Icon(Icons.Rounded.PictureAsPdf, null, tint = AccentColor, modifier = Modifier.size(40.dp))
             if (editing) {
-                if (isSelected) Box(Modifier.fillMaxSize().background(Mint.copy(alpha = .18f)))
+                if (isSelected) Box(Modifier.fillMaxSize().background(AccentColor.copy(alpha = .18f)))
                 Surface(Modifier.align(Alignment.TopEnd).padding(8.dp), shape = RoundedCornerShape(50),
                     color = Ink.copy(alpha = .9f)) {
                     Icon(if (isSelected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-                        if (isSelected) "Ausgewählt" else "Nicht ausgewählt", tint = Mint,
+                        if (isSelected) "Ausgewählt" else "Nicht ausgewählt", tint = AccentColor,
                         modifier = Modifier.padding(4.dp).size(24.dp))
                 }
             }
             if (savedPage > 0) Surface(Modifier.align(Alignment.BottomStart).padding(8.dp), shape = RoundedCornerShape(8.dp), color = Ink.copy(alpha = .9f)) {
-                Text("Seite ${savedPage + 1}", Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall)
+                Text(if (readStatus == ReadStatus.READ) "Gelesen" else "Seite ${savedPage + 1}", Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall)
             }
         }
-        Row(Modifier.padding(start = 12.dp, top = 4.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = 12.dp, top = 4.dp, bottom = Space.small), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(file.nameWithoutExtension, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
-                Text(String.format(java.util.Locale.GERMAN, "%.1f MB", file.length() / 1048576.0), style = MaterialTheme.typography.labelSmall, color = Mint)
+                Text(readStatus.label + " · " + String.format(java.util.Locale.GERMAN, "%.1f MB", file.length() / 1048576.0), style = MaterialTheme.typography.labelSmall, color = AccentColor)
             }
             if (!editing) IconButton(onClick = onMore) { Icon(Icons.Rounded.MoreVert, "Aktionen für ${file.name}") }
             else Spacer(Modifier.width(48.dp).height(48.dp))
@@ -407,13 +478,12 @@ private fun DownloadDialog(active: Boolean, defaultChapter: Int, onClose: () -> 
     var start by rememberSaveable { mutableStateOf(defaultChapter.toString()) }
     var rangeStart by rememberSaveable { mutableStateOf("420") }
     var end by rememberSaveable { mutableStateOf("430") }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val modes = listOf("new" to "Neuestes", "single" to "Ein Kapitel", "range" to "Bereich", "from" to "Ab Kapitel", "all" to "Alle ab 420")
     val displayedStart = if (mode == "range") rangeStart else start
     val startNumber = displayedStart.toIntOrNull() ?: 0; val endNumber = end.toIntOrNull() ?: 0
     val valid = when (mode) { "new", "all" -> true; "range" -> startNumber in 1..100000 && endNumber in startNumber..100000; else -> startNumber in 1..100000 }
     AlertDialog(onDismissRequest = onClose, title = { Text("Neue Kapitel") },
-        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.small)) {
             Text("Direkt auf dein Handy. Vorhandene Kapitel werden übersprungen.")
             modes.forEach { (value, title) ->
                 Row(Modifier.fillMaxWidth().clickable { mode = value }, verticalAlignment = Alignment.CenterVertically) {
@@ -428,17 +498,16 @@ private fun DownloadDialog(active: Boolean, defaultChapter: Int, onClose: () -> 
             if (mode == "range") OutlinedTextField(end, { end = it.filter(Char::isDigit).take(6) },
                 label = { Text("Bis Kapitel") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true,
                 isError = !valid, supportingText = { if (!valid) Text("Das Ende muss mindestens dem Start entsprechen.") })
-            if (active) Text("Ein Download läuft bereits. Du kannst ihn in der Bibliothek abbrechen.", color = Mint)
+            if (active) Text("Ein Download läuft bereits. Du kannst ihn in der Bibliothek abbrechen.", color = AccentColor)
         } },
         confirmButton = { Button(enabled = valid && !active, onClick = {
-            if (Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
             onStart(mode, startNumber, endNumber)
         }) { Text("Herunterladen") } },
         dismissButton = { TextButton(onClick = onClose) { Text("Schließen") } })
 }
 
 @Composable
-private fun ReaderScreen(files: List<File>, initial: File, initialPage: Int, onPosition: (File, Int) -> Unit, onClose: () -> Unit) {
+private fun ReaderScreen(files: List<File>, initial: File, initialPage: Int, onPosition: (File, Int, Int) -> Unit, onClose: () -> Unit) {
     val readerSnack = remember { SnackbarHostState() }
     var chrome by rememberSaveable { mutableStateOf(false) }
     fun chapterTitle(file: File) = ReadingOrder.chapterNumber(file.name)?.let { "Kapitel $it" } ?: "Kapitel"
@@ -457,7 +526,7 @@ private fun ReaderScreen(files: List<File>, initial: File, initialPage: Int, onP
         AndroidView(factory = { context ->
             MangaPageView(context).apply {
                 onTap = { chrome = !chrome }
-                this.onPosition = { file, p, total -> title = chapterTitle(file); page = p; count = total; currentPosition(file, p) }
+                this.onPosition = { file, p, total -> title = chapterTitle(file); page = p; count = total; currentPosition(file, p, total) }
                 onLoading = { loading = it }; onError = { error = it }; onBoundary = { boundary = it }
                 view = this; open(files, initial, initialPage)
             }

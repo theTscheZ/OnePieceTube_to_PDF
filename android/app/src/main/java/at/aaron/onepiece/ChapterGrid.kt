@@ -21,7 +21,7 @@ import java.io.File
 @Composable
 internal fun ChapterGrid(
     files: List<File>, selected: Set<String>, editing: Boolean, enabled: Boolean,
-    savedPage: (File) -> Int, onOpen: (File) -> Unit, onMore: (File) -> Unit,
+    savedPage: (File) -> Int, readStatus: (File) -> ReadStatus, onOpen: (File) -> Unit, onMore: (File) -> Unit,
     onStartSelection: () -> Unit, onSelection: (Set<String>) -> Unit
 ) {
     val grid = rememberLazyGridState()
@@ -128,12 +128,12 @@ internal fun ChapterGrid(
                 }
             }
         },
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(Space.medium),
+        verticalArrangement = Arrangement.spacedBy(Space.medium),
         contentPadding = PaddingValues(bottom = 100.dp)
     ) {
         items(files, key = { it.name }) { file ->
-            PdfCard(file, savedPage(file), onOpen = { if (enabled) tap(keys.indexOf(file.name)) },
+            PdfCard(file, savedPage(file), readStatus(file), onOpen = { if (enabled) tap(keys.indexOf(file.name)) },
                 onMore = { onMore(file) }, editing = editing, isSelected = file.name in selected,
                 onLongPress = {
                     if (enabled) {

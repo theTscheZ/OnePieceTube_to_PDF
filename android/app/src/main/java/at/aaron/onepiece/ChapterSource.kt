@@ -4,7 +4,7 @@ import org.jsoup.Jsoup
 import org.json.JSONObject
 import java.io.IOException
 
-/** The same selectors and page order as scraper.py, with absolute image URL resolution. */
+/** Reads chapter metadata and page order, resolving legacy relative image URLs. */
 object ChapterSource {
     const val BASE = "https://onepiece.tube"
     private fun data(html: String): JSONObject? {

@@ -16,6 +16,9 @@ Updates müssen mit demselben Schlüssel signiert sein.
 
 ## Funktionen
 
+- Optional mit **Halte mich aktuell** neue Kapitel automatisch herunterladen und benachrichtigen lassen.
+- Lesestatus filtern und gelesene Kapitel gesammelt löschen.
+- Akzentfarbe in den Einstellungen anpassen.
 - Kapitel herunterladen: neuestes Kapitel, einzelnes Kapitel, Bereich oder ab einer Kapitelnummer.
 - PDFs importieren, suchen, sortieren, umbenennen, teilen und exportieren.
 - Mehrere Kapitel per langem Drücken und Wischen auswählen und gemeinsam löschen.
@@ -23,6 +26,9 @@ Updates müssen mit demselben Schlüssel signiert sein.
 - Nahtlos zum nächsten Kapitel weiterswischen und später am gespeicherten Lesestand fortsetzen.
 
 ## Entwicklung
+
+Entwicklungsstand: **1.1.0**. Die neuen Funktionen werden mit dieser Version verfügbar;
+der Download oben verweist bis zur nächsten Veröffentlichung auf den bestehenden Release 1.0.6.
 
 Dieser Branch `codex/android-manga-reader` enthält die Android-App. Das separate Python-CLI
 wird auf [`main`](https://github.com/theTscheZ/OnePieceTube_to_PDF/tree/main) gepflegt.

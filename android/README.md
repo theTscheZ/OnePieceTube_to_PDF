@@ -23,6 +23,40 @@ Der GitHub-Actions-Workflow **Android APK** führt dieselben Prüfungen aus und 
 `OnePieceTube-Reader-debug-apk` als herunterladbares Artefakt bereit. Bei fehlgeschlagenen Prüfungen
 entsteht bewusst kein als erfolgreich gekennzeichnetes APK-Artefakt.
 
+## Automatisch aktuell bleiben und Darstellung
+
+Unter **Einstellungen** (Zahnrad in der Bibliothek):
+
+- **Halte mich aktuell** ist zunächst ausgeschaltet. Nach dem Aktivieren prüft WorkManager
+  ungefähr stündlich auf neue Kapitel, auch wenn die App geschlossen ist. Android kann Prüfungen verzögern.
+- Ohne erkennbare Kapitel lädt der erste Lauf nur das neueste Kapitel. Andernfalls werden alle Kapitel
+  nach der höchsten vorhandenen Kapitelnummer geladen. Bereits heruntergeladene Kapitelnummern werden
+  zusätzlich dauerhaft gemerkt: später gelöschte Kapitel werden nicht automatisch wiederhergestellt.
+- **Nur im WLAN herunterladen** ist voreingestellt und verwendet Androids Bedingung für ungetaktete
+  Verbindungen. Sie gilt für automatische Prüfungen und Downloads; manuelle Downloads behalten ihre eigene Bedienung.
+- Automatische und manuelle Downloads verwenden dieselbe Warteschlange. Während eines manuellen Downloads
+  wird eine automatische Prüfung beim nächsten Termin nachgeholt. Fehlgeschlagene automatische Downloads
+  werden mit wachsendem Abstand erneut versucht; fertige Kapitel bleiben erhalten.
+- Ausschließlich erfolgreich automatisch heruntergeladene Kapitel erzeugen **„Neues Kapitel X“**.
+  Antippen öffnet das betreffende PDF. Manuelle Downloads erzeugen keine Fertig-Benachrichtigung.
+  Bei verweigerter Benachrichtigungsberechtigung wird trotzdem automatisch geladen.
+- Eine der sechs **Akzentfarben** auswählen; die Änderung gilt sofort für Bibliothek, Einstellungen
+  und Reader und bleibt nach einem Neustart erhalten.
+
+## Lesestatus
+
+Jedes PDF ist **ungelesen**, **angefangen** oder **gelesen**. Beim Anzeigen der letzten Seite wird
+es als gelesen markiert. Vorhandene Lesestände aus älteren Versionen gelten zunächst als angefangen.
+In der Bibliothek lassen sich die Status filtern und über die PDF-Aktionen manuell setzen.
+„Als ungelesen markieren“ setzt die gespeicherte Seite zurück.
+
+Im Sortiermenü gibt es **Gelesene Kapitel löschen**. Die Auswahl wird vor dem Löschen bestätigt;
+importierte Originaldateien außerhalb der App bleiben erhalten.
+
+Die Oberfläche verwendet gemeinsame Abstände auf einem 4-dp-Raster: 16 dp Außen- und Kartenabstand,
+8 dp zwischen zusammengehörigen Elementen und 24 dp zwischen Einstellungsabschnitten.
+Material-3-Komponenten behalten ihre Standardabstände und berührbaren Mindestflächen.
+
 ## Bedienung
 
 - **+**: eine oder mehrere vorhandene PDFs importieren. Die App erstellt lokale Kopien.

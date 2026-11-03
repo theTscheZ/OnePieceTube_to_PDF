@@ -21,6 +21,8 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    private val automatic get() = inputData.getString("mode") == "auto"
+    private val settings = AppSettings(context)
     private val client = OkHttpClient.Builder().callTimeout(45, TimeUnit.SECONDS).build()
     private fun request(url: String) = client.newCall(Request.Builder().url(url)
         .header("User-Agent", "Mozilla/5.0 (Android) OnePieceTubeReader/1.0")
@@ -29,7 +31,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         if (!it.isSuccessful) throw IOException("Website antwortet mit HTTP ${it.code}")
         it.body?.string() ?: throw IOException("Leere Antwort")
     }
-    private fun checkStopped() { if (isStopped) throw InterruptedException("Download abgebrochen") }
+    private fun checkStopped() { if (isStopped || (automatic && !settings.keepCurrent)) throw InterruptedException("Download abgebrochen") }
     private suspend fun status(text: String, done: Int, total: Int) {
         checkStopped()
         setProgress(workDataOf("message" to text, "done" to done, "total" to total))
@@ -55,12 +57,16 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             val startInput = inputData.getInt("start", 420)
             val latest by lazy { ChapterSource.latest(html("${ChapterSource.BASE}/manga/kapitel/420/1")) }
             val start = if (mode == "new") latest else if (mode == "all") 420 else startInput
-            val end = when (mode) { "new" -> latest; "all", "from" -> latest; "range" -> inputData.getInt("end", start); else -> start }
+            val end = when (mode) { "new" -> latest; "all", "from" -> latest; "range", "auto" -> inputData.getInt("end", start); else -> start }
             require(start in 1..100000 && end in start..100000) { "Ungültiger Kapitelbereich" }
             val total = end - start + 1
             for (chapter in start..end) {
                 checkStopped()
                 val target = File(library.directory, "OnePiece_$chapter.pdf")
+                if (automatic && (chapter <= settings.downloadedThrough || library.files().any { ReadingOrder.chapterNumber(it.name) == chapter })) {
+                    settings.rememberDownloaded(chapter)
+                    continue
+                }
                 if (target.exists()) { completed++; status("Kapitel $chapter bereits vorhanden", completed, total); continue }
                 val firstUrl = "${ChapterSource.BASE}/manga/kapitel/$chapter/1"
                 val first = html(firstUrl)
@@ -115,8 +121,16 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     }
                     checkStopped()
                     library.pageCount(temporary)
-                    synchronized(Library.LOCK) {
-                        if (!target.exists()) check(temporary.renameTo(target)) { "PDF konnte nicht gespeichert werden" }
+                    val saved = synchronized(Library.LOCK) {
+                        if (target.exists()) false else {
+                            checkStopped()
+                            check(temporary.renameTo(target)) { "PDF konnte nicht gespeichert werden" }
+                            true
+                        }
+                    }
+                    if (automatic) {
+                        settings.rememberDownloaded(chapter)
+                        if (saved) AutoUpdates.notifyDownloaded(applicationContext, chapter, target.name)
                     }
                 } finally { temporary.delete() }
                 completed++
@@ -126,7 +140,8 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Result.failure(workDataOf("message" to "${e.message ?: "Download fehlgeschlagen"} · $completed Kapitel fertig"))
+            if (automatic && settings.keepCurrent) Result.retry()
+            else Result.failure(workDataOf("message" to "${e.message ?: "Download fehlgeschlagen"} · $completed Kapitel fertig"))
         } finally { client.dispatcher.cancelAll() }
     }
     override suspend fun getForegroundInfo() = notification("Download wird gestartet …", 0, 0)

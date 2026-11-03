@@ -8,14 +8,29 @@ import android.provider.OpenableColumns
 import java.io.File
 import java.util.UUID
 
+enum class ReadStatus(val label: String) { UNREAD("Ungelesen"), STARTED("Angefangen"), READ("Gelesen") }
+
 class Library(private val context: Context) {
     val directory = File(context.filesDir, "chapters").apply { mkdirs() }
     private val prefs = context.getSharedPreferences("reading", Context.MODE_PRIVATE)
     fun files(): List<File> = directory.listFiles()?.filter { it.extension.equals("pdf", true) }
         ?.sortedWith { a, b -> ReadingOrder.names.compare(a.name, b.name) } ?: emptyList()
     fun savedPage(file: File) = prefs.getInt("page:${file.name}", 0)
-    fun savePage(file: File, page: Int) {
-        prefs.edit().putInt("page:${file.name}", page).putString("last", file.name).apply()
+    fun status(file: File): ReadStatus = prefs.getString("status:${file.name}", null)?.let { value ->
+        ReadStatus.entries.find { it.name == value }
+    } ?: if (prefs.contains("page:${file.name}")) ReadStatus.STARTED else ReadStatus.UNREAD
+    fun markStatus(file: File, status: ReadStatus) {
+        val edit = prefs.edit().putString("status:${file.name}", status.name)
+        if (status == ReadStatus.UNREAD) {
+            edit.remove("page:${file.name}")
+            if (prefs.getString("last", null) == file.name) edit.remove("last")
+        }
+        edit.apply()
+    }
+    fun savePage(file: File, page: Int, total: Int = 0) {
+        val state = if (status(file) == ReadStatus.READ || (total > 0 && page >= total - 1)) ReadStatus.READ else ReadStatus.STARTED
+        prefs.edit().putInt("page:${file.name}", page).putString("last", file.name)
+            .putString("status:${file.name}", state.name).apply()
     }
     fun lastFile() = prefs.getString("last", null)?.let { name -> files().find { it.name == name } }
     fun pageCount(file: File): Int = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
@@ -45,13 +60,14 @@ class Library(private val context: Context) {
         if (target == file) return@synchronized
         require(!target.exists()) { "Dieser Name ist bereits vergeben" }
         check(file.renameTo(target)) { "Umbenennen fehlgeschlagen" }
-        val edit = prefs.edit().putInt("page:${target.name}", savedPage(file)).remove("page:${file.name}")
+        val edit = prefs.edit().putString("status:${target.name}", status(file).name).remove("status:${file.name}")
+        if (prefs.contains("page:${file.name}")) edit.putInt("page:${target.name}", savedPage(file)).remove("page:${file.name}")
         if (prefs.getString("last", null) == file.name) edit.putString("last", target.name)
         edit.apply()
     }
     fun delete(file: File) {
         check(file.delete()) { "Löschen fehlgeschlagen" }
-        val edit = prefs.edit().remove("page:${file.name}")
+        val edit = prefs.edit().remove("page:${file.name}").remove("status:${file.name}")
         if (prefs.getString("last", null) == file.name) edit.remove("last")
         edit.apply()
     }
