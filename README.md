@@ -5,7 +5,7 @@ Entwickelt mit Kotlin, Jetpack Compose und Material 3. Android 8.0 oder neuer er
 
 ## Download und Installation
 
-**[OnePieceTube Reader 1.0.6 – APK direkt herunterladen](https://github.com/theTscheZ/OnePieceTube_to_PDF/releases/download/v1.0.6/OnePieceTube-Reader-1.0.6.apk)**
+**[OnePieceTube Reader 1.1.0 – APK direkt herunterladen](https://github.com/theTscheZ/OnePieceTube_to_PDF/releases/download/v1.1.0/OnePieceTube-Reader-1.1.0.apk)**
 
 APK auf dem Handy herunterladen und öffnen. Falls Android nachfragt, die Installation für den
 verwendeten Browser oder Dateimanager erlauben. Für Updates die neue APK über die vorhandene App
