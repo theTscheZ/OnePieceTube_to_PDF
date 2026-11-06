@@ -1,6 +1,10 @@
 import XCTest
 
 final class ReaderUITests: XCTestCase {
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        executionTimeAllowance = 120
+    }
     private func launch() -> XCUIApplication {
         let app = XCUIApplication(); app.launchArguments = ["--ui-testing"]; app.launch(); return app
     }

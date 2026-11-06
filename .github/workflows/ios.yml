@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Generate Xcode project
@@ -31,10 +31,13 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f: print('id=' + phones[0]['udid'], file=f)
           PY
       - name: Build and test on iPhone simulator
+        timeout-minutes: 15
         run: >-
           xcodebuild -project ios/OnePieceTubeReader.xcodeproj -scheme OnePieceTubeReader
           -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}'
           -derivedDataPath /tmp/onepiece-ios-simulator -resultBundlePath /tmp/OnePieceTubeReader.xcresult
+          -parallel-testing-enabled NO -test-timeouts-enabled YES
+          -default-test-execution-time-allowance 120 -maximum-test-execution-time-allowance 180
           CODE_SIGNING_ALLOWED=NO test
       - name: Build unsigned iPhone package
         run: |
