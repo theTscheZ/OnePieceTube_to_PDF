@@ -60,9 +60,19 @@ import UserNotifications
             LibraryView().environmentObject(library).environmentObject(settings).environmentObject(download)
                 .tint(settings.accent.color).preferredColorScheme(.dark)
                 .onOpenURL { url in if url.isFileURL { Task { await library.importPDFs([url]) } } }
-                .task { AutomaticScheduler.schedule() }
+                 .task {
+                    AutomaticScheduler.schedule()
+                    if settings.keepCurrent && Date().timeIntervalSince(settings.lastAutomaticCheck) >= 3600 {
+                        _ = await download.checkAutomatically()
+                    }
+                }
                 .onChange(of: phase) { _, phase in
-                    if phase == .active { library.refresh() }
+                    if phase == .active {
+                        library.refresh()
+                        if settings.keepCurrent && Date().timeIntervalSince(settings.lastAutomaticCheck) >= 3600 {
+                            Task { _ = await download.checkAutomatically() }
+                        }
+                    }
                     if phase == .background { AutomaticScheduler.schedule() }
                 }
                 .onChange(of: settings.keepCurrent) { _, enabled in

@@ -145,6 +145,10 @@ enum LayoutSpace {
     @Published var wifiOnly: Bool { didSet { defaults.set(wifiOnly, forKey: "wifiOnly") } }
     @Published var accent: Accent { didSet { defaults.set(accent.rawValue, forKey: "accent") } }
     var downloadedThrough: Int { defaults.integer(forKey: "downloadedThrough") }
+    var lastAutomaticCheck: Date {
+        get { defaults.object(forKey: "lastAutomaticCheck") as? Date ?? .distantPast }
+        set { defaults.set(newValue, forKey: "lastAutomaticCheck") }
+    }
     func rememberDownloaded(_ chapter: Int) { if chapter > downloadedThrough { defaults.set(chapter, forKey: "downloadedThrough") } }
     init(defaults: UserDefaults = ReaderEnvironment.defaults) {
         self.defaults = defaults

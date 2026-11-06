@@ -145,6 +145,7 @@ actor ChapterDownloader {
         let settings = ReaderSettings.shared
         guard settings.keepCurrent, !busy else { return false }
         busy = true; automatic = true; progress = "Neue Kapitel werden geprüft …"
+        settings.lastAutomaticCheck = Date()
         let task = Task { [self] () -> Bool in
             defer { busy = false; automatic = false; job = nil }
             do {

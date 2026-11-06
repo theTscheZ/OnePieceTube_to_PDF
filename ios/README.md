@@ -72,6 +72,7 @@ zusätzlich gemerkt, damit später gelöschte Kapitel nicht immer wieder erschei
 **Nur im WLAN** ist voreingestellt und verbietet mobile, teure und eingeschränkte Verbindungen für die Automatik.
 Manuelle Downloads können mobile Daten verwenden.
 
+Beim Öffnen der App wird bei aktivierter Automatik ebenfalls geprüft, wenn die letzte Prüfung mindestens eine Stunde zurückliegt.
 Danach wird ein `BGProcessingTask` frühestens für eine Stunde später angemeldet. iOS entscheidet,
 wann und ob er tatsächlich ausgeführt wird; ein fester Stundentakt oder sofortige Benachrichtigung
 ist ohne eigenen Push-Dienst nicht zugesichert. Hintergrundaktualisierung muss für die App erlaubt sein.
