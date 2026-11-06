@@ -107,30 +107,46 @@ struct MangaPager: UIViewControllerRepresentable {
         controller.dataSource = context.coordinator; controller.delegate = context.coordinator
         context.coordinator.controller = controller
         controller.setViewControllers([context.coordinator.page(position)], direction: .reverse, animated: false)
+        context.coordinator.disableOuterScrolling()
         return controller
     }
     func updateUIViewController(_ controller: UIPageViewController, context: Context) {
         context.coordinator.parent = self
-        let current = (controller.viewControllers?.first as? PDFPageController)?.position
-        if current != position {
-            controller.setViewControllers([context.coordinator.page(position)], direction: .reverse, animated: false)
-            context.coordinator.setPaging(enabled: true)
-        }
+        context.coordinator.show(position)
     }
+
     @MainActor final class Coordinator: NSObject, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
         var parent: MangaPager
         weak var controller: UIPageViewController?
+        private var transitioning = false
         init(_ parent: MangaPager) { self.parent = parent }
         func page(_ position: MangaPosition) -> PDFPageController {
             let page = PDFPageController(url: parent.directory.appendingPathComponent(parent.names[position.chapter]), position: position)
             page.onTap = { [weak self] in self?.parent.onTap() }
-            page.onZoom = { [weak self, weak page] zoomed in
-                guard let self, self.controller?.viewControllers?.first === page else { return }; self.setPaging(enabled: !zoomed)
+            page.onSwipe = { [weak self, weak page] forward in
+                guard let self, self.controller?.viewControllers?.first === page,
+                      !self.transitioning, let current = page?.position,
+                      let next = current.moving(forward: forward, counts: self.parent.counts) else { return }
+                self.parent.position = next
             }
             return page
         }
-        func setPaging(enabled: Bool) {
-            controller?.view.subviews.compactMap { $0 as? UIScrollView }.forEach { $0.isScrollEnabled = enabled }
+        func disableOuterScrolling() {
+            // PDFKit owns its inner scroll view. Fit-page swipes use explicit recognizers;
+            // leaving two competing horizontal scroll views enabled loses gestures on iOS.
+            controller?.view.subviews.compactMap { $0 as? UIScrollView }.forEach { $0.isScrollEnabled = false }
+        }
+        func show(_ position: MangaPosition) {
+            guard let controller, !transitioning else { return }
+            let current = (controller.viewControllers?.first as? PDFPageController)?.position
+            guard current != position else { return }
+            let forward = current.map { position.chapter > $0.chapter || (position.chapter == $0.chapter && position.page > $0.page) } ?? true
+            transitioning = true
+            controller.setViewControllers([page(position)], direction: forward ? .reverse : .forward, animated: true) { [weak self] _ in
+                guard let self else { return }
+                self.transitioning = false; self.disableOuterScrolling()
+                if self.parent.position != position { self.show(self.parent.position) }
+            }
         }
         // The page to the left is the next manga page; a rightward swipe reveals it.
         func pageViewController(_ controller: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {
@@ -144,20 +160,19 @@ struct MangaPager: UIViewControllerRepresentable {
         func pageViewController(_ controller: UIPageViewController, didFinishAnimating finished: Bool,
                                 previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
             if completed, let page = controller.viewControllers?.first as? PDFPageController {
-                parent.position = page.position; setPaging(enabled: true)
+                parent.position = page.position; disableOuterScrolling()
             }
         }
     }
 }
 
-final class PDFPageController: UIViewController {
+final class PDFPageController: UIViewController, UIGestureRecognizerDelegate {
     let position: MangaPosition
     let url: URL
     let pdf = PDFView()
     var onTap: (() -> Void)?
-    var onZoom: ((Bool) -> Void)?
+    var onSwipe: ((Bool) -> Void)?
     private var previousSize = CGSize.zero
-    private var observer: NSObjectProtocol?
     init(url: URL, position: MangaPosition) { self.url = url; self.position = position; super.init(nibName: nil, bundle: nil) }
     required init?(coder: NSCoder) { fatalError("Storyboard initialization is unsupported") }
     override func viewDidLoad() {
@@ -172,8 +187,9 @@ final class PDFPageController: UIViewController {
         }
         let tap = UITapGestureRecognizer(target: self, action: #selector(tapped)); tap.cancelsTouchesInView = false
         view.addGestureRecognizer(tap)
-        observer = NotificationCenter.default.addObserver(forName: .PDFViewScaleChanged, object: pdf, queue: .main) { [weak self] _ in
-            guard let self else { return }; self.onZoom?(self.pdf.scaleFactor > self.pdf.minScaleFactor * 1.02)
+        for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
+            let swipe = UISwipeGestureRecognizer(target: self, action: #selector(swiped(_:)))
+            swipe.direction = direction; swipe.delegate = self; view.addGestureRecognizer(swipe)
         }
     }
     override func viewDidLayoutSubviews() {
@@ -185,5 +201,12 @@ final class PDFPageController: UIViewController {
         pdf.minScaleFactor = fit; pdf.maxScaleFactor = fit * 5; pdf.scaleFactor = fit
     }
     @objc private func tapped() { onTap?() }
-    deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
+    @objc private func swiped(_ gesture: UISwipeGestureRecognizer) { onSwipe?(gesture.direction == .right) }
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        pdf.scaleFactor <= pdf.minScaleFactor * 1.02
+    }
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        gestureRecognizer is UISwipeGestureRecognizer && pdf.scaleFactor <= pdf.minScaleFactor * 1.02
+    }
 }
