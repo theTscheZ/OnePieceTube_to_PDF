@@ -17,7 +17,7 @@ final class ReaderUITests: XCTestCase {
     }
     func testLongPressSelectionCanBeExited() {
         let app = launch()
-        let cell = app.cells.element(boundBy: 0)
+        let cell = app.descendants(matching: .any)["chapter-OnePiece_9.pdf"]
         XCTAssertTrue(cell.waitForExistence(timeout: 10)); cell.press(forDuration: 0.8)
         XCTAssertTrue(app.buttons["Auswahl verlassen"].waitForExistence(timeout: 5))
         app.buttons["Alle auswählen"].tap()
@@ -27,7 +27,7 @@ final class ReaderUITests: XCTestCase {
     }
     func testRightwardSwipeAndNextChapter() {
         let app = launch()
-        let cell = app.cells.element(boundBy: 0)
+        let cell = app.descendants(matching: .any)["chapter-OnePiece_9.pdf"]
         XCTAssertTrue(cell.waitForExistence(timeout: 10)); cell.tap()
         let window = app.windows.firstMatch
         let center = window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))

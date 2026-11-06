@@ -11,8 +11,11 @@ enum DownloadMode: String, CaseIterable, Identifiable {
 }
 
 actor ChapterDownloader {
+    private let protocolClasses: [AnyClass]?
+    init(protocolClasses: [AnyClass]? = nil) { self.protocolClasses = protocolClasses }
     private func session(wifiOnly: Bool) -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
+        if let protocolClasses { configuration.protocolClasses = protocolClasses }
         configuration.timeoutIntervalForRequest = 45
         configuration.timeoutIntervalForResource = 180
         configuration.allowsCellularAccess = !wifiOnly

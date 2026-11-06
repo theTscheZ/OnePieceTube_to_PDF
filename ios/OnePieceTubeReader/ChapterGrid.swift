@@ -80,6 +80,7 @@ struct ChapterGrid: UIViewControllerRepresentable {
                     selected: parent.selection.contains(chapter.name), accent: parent.accent, onAction: { [weak self] in self?.parent.onAction(chapter) })
             }.margins(.all, 0)
             cell.isAccessibilityElement = true
+            cell.accessibilityIdentifier = "chapter-" + chapter.name
             cell.accessibilityLabel = chapter.title + ", " + (parent.records[chapter.name]?.status.title ?? "Ungelesen")
             cell.accessibilityTraits = parent.selection.contains(chapter.name) ? [.button, .selected] : .button
             cell.accessibilityCustomActions = [UIAccessibilityCustomAction(name: "Kapitel-Aktionen", actionHandler: { [weak self] _ in
@@ -184,11 +185,24 @@ struct ChapterCard: View {
         }.background(Color(uiColor: .secondarySystemGroupedBackground)).clipShape(RoundedRectangle(cornerRadius: LayoutSpace.medium))
             .overlay(RoundedRectangle(cornerRadius: LayoutSpace.medium).stroke(selected ? accent : .clear, lineWidth: 2))
             .task(id: chapter) {
-                let image = await Task.detached(priority: .utility) { () -> UIImage? in
-                    guard let pdf = PDFDocument(url: url), !pdf.isLocked, let page = pdf.page(at: 0) else { return nil }
-                    return page.thumbnail(of: CGSize(width: 240, height: 340), for: .mediaBox)
-                }.value
+                let image = await ThumbnailCache.shared.image(url: url, modified: chapter.modified)
                 if !Task.isCancelled { thumbnail = image }
             }
+    }
+}
+
+private actor ThumbnailCache {
+    static let shared = ThumbnailCache()
+    private let cache = NSCache<NSString, UIImage>()
+    init() { cache.totalCostLimit = 24 * 1024 * 1024 }
+    func image(url: URL, modified: Date) -> UIImage? {
+        let key = (url.path + ":" + String(modified.timeIntervalSince1970)) as NSString
+        if let image = cache.object(forKey: key) { return image }
+        return autoreleasepool {
+            guard let pdf = PDFDocument(url: url), !pdf.isLocked, let page = pdf.page(at: 0) else { return nil }
+            let image = page.thumbnail(of: CGSize(width: 240, height: 340), for: .mediaBox)
+            cache.setObject(image, forKey: key, cost: Int(image.size.width * image.size.height * 4))
+            return image
+        }
     }
 }

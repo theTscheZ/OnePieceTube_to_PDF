@@ -23,7 +23,7 @@ struct MangaReader: View {
             else if total > 0 {
                 MangaPager(directory: library.directory, names: request.names, counts: counts, position: $position,
                     onTap: { withAnimation(.easeInOut(duration: 0.15)) { chrome.toggle() } })
-                    .ignoresSafeArea().accessibilityIdentifier("manga-pager")
+                    .ignoresSafeArea()
             } else {
                 ContentUnavailableView {
                     Label("PDF kann nicht geöffnet werden", systemImage: "exclamationmark.doc")
@@ -70,7 +70,9 @@ struct MangaReader: View {
             let urls = request.names.map { library.url($0) }
             let result = await Task.detached(priority: .userInitiated) {
                 urls.map { url -> Int in
-                    guard let pdf = PDFDocument(url: url), !pdf.isLocked else { return 0 }; return pdf.pageCount
+                    autoreleasepool {
+                        guard let pdf = PDFDocument(url: url), !pdf.isLocked else { return 0 }; return pdf.pageCount
+                    }
                 }
             }.value
             guard !Task.isCancelled else { return }

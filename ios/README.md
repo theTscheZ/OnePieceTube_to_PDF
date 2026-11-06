@@ -103,7 +103,7 @@ ein verfügbares iPhone, führt Unit-/UI-Tests aus und baut danach eine unsignie
 Die IPA und der `.xcresult`-Testbericht stehen als GitHub-Actions-Artefakte bereit.
 
 Tests prüfen Kapitelreihenfolge, Dateinamen, Download-Bereiche, Fehlerantworten, Bildreihenfolge,
-Lesestatus, Importkopien, Umbenennen/Löschen, Einstellungen und Ziehauswahl. UI-Tests starten die App,
+Lesestatus, Importkopien, Umbenennen/Löschen, Einstellungen, Ziehauswahl und die atomare PDF-Erstellung mit simulierten HTTP-/Bildfehlern. UI-Tests starten die App,
 öffnen die Einstellungen, wählen eine Farbe, prüfen den Auswahlmodus und blättern nach rechts ins nächste PDF.
 Die Test-PDFs und Einstellungen liegen beim speziellen Debug-Teststart in einem getrennten Verzeichnis.
 
