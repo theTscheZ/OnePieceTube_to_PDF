@@ -1,0 +1,56 @@
+name: iPhone app
+on:
+  push:
+    branches: [codex/android-manga-reader]
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate Xcode project
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          cd ios
+          xcodegen generate
+      - name: Select an available iPhone simulator
+        id: simulator
+        run: |
+          xcrun simctl list devices available --json > /tmp/simulators.json
+          python3 - <<'PY'
+          import json, os
+          data = json.load(open('/tmp/simulators.json'))
+          phones = [d for group in data['devices'].values() for d in group if d['name'].startswith('iPhone') and d['isAvailable']]
+          if not phones: raise SystemExit('No iPhone simulator installed')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f: print('id=' + phones[0]['udid'], file=f)
+          PY
+      - name: Build and test on iPhone simulator
+        run: >-
+          xcodebuild -project ios/OnePieceTubeReader.xcodeproj -scheme OnePieceTubeReader
+          -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}'
+          -derivedDataPath /tmp/onepiece-ios-simulator -resultBundlePath /tmp/OnePieceTubeReader.xcresult
+          CODE_SIGNING_ALLOWED=NO test
+      - name: Build unsigned iPhone package
+        run: |
+          xcodebuild -project ios/OnePieceTubeReader.xcodeproj -scheme OnePieceTubeReader \
+            -destination 'generic/platform=iOS' -derivedDataPath /tmp/onepiece-ios-device CODE_SIGNING_ALLOWED=NO build
+          mkdir -p /tmp/onepiece-ipa/Payload
+          ditto /tmp/onepiece-ios-device/Build/Products/Debug-iphoneos/OnePieceTubeReader.app /tmp/onepiece-ipa/Payload/OnePieceTubeReader.app
+          cd /tmp/onepiece-ipa
+          zip -qry OnePieceTubeReader-1.0.0-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OnePieceTubeReader-iPhone-unsigned
+          path: /tmp/onepiece-ipa/OnePieceTubeReader-1.0.0-unsigned.ipa
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: iPhone-test-results
+          path: /tmp/OnePieceTubeReader.xcresult

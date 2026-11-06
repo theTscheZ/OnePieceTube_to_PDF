@@ -1,7 +1,8 @@
 # OnePieceTube Reader
 
-Native Android-App zum Herunterladen, Verwalten und Lesen von OnePieceTube-Kapiteln als PDF.
-Entwickelt mit Kotlin, Jetpack Compose und Material 3. Android 8.0 oder neuer erforderlich.
+Native Apps zum Herunterladen, Verwalten und Lesen von OnePieceTube-Kapiteln als PDF.
+Android: Kotlin, Jetpack Compose und Material 3, ab Android 8.0.
+iPhone und iPad: SwiftUI und PDFKit, ab iOS/iPadOS 17.
 
 ## Download und Installation
 
@@ -13,6 +14,17 @@ installieren; bei einer Deinstallation werden intern gespeicherte PDFs und Leses
 Updates müssen mit demselben Schlüssel signiert sein.
 
 [Alle Versionen und Release-Informationen](https://github.com/theTscheZ/OnePieceTube_to_PDF/releases)
+
+## iPhone und iPad
+
+Die native iOS-Version liegt unter [`ios/`](ios/README.md). Sie bietet Kapitel-Downloads,
+PDF-Verwaltung, Lesestatus, Mehrfachauswahl, Akzentfarben und den Reader mit Zoom und
+rechts-nach-links-Blättern über Kapitelgrenzen hinweg.
+
+Die [iOS-Anleitung](ios/README.md) erklärt Build, Tests und Installation. Eine IPA muss vor
+Installation auf einem echten Gerät mit einem Apple-Konto signiert werden; eine APK lässt sich
+nicht auf dem iPhone installieren. Automatische Downloads verwenden Apples Hintergrundverarbeitung,
+deren Ausführungszeit iOS bestimmt.
 
 ## Funktionen
 
@@ -30,7 +42,7 @@ Updates müssen mit demselben Schlüssel signiert sein.
 Entwicklungsstand: **1.1.0**. Die neuen Funktionen werden mit dieser Version verfügbar;
 der Download oben verweist bis zur nächsten Veröffentlichung auf den bestehenden Release 1.0.6.
 
-Dieser Branch `codex/android-manga-reader` enthält die Android-App. Das separate Python-CLI
+Dieser Branch `codex/android-manga-reader` enthält die mobilen Apps. Das separate Python-CLI
 wird auf [`main`](https://github.com/theTscheZ/OnePieceTube_to_PDF/tree/main) gepflegt.
 
 Das Projekt liegt unter [`android/`](android/). Diesen Ordner in Android Studio öffnen.

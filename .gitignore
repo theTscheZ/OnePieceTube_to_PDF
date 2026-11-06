@@ -22,3 +22,12 @@ local.properties
 # APK verification helper
 __pycache__/
 *.py[cod]
+
+# iOS / Xcode (project generated from ios/project.yml)
+ios/*.xcodeproj/
+ios/OnePieceTubeReader/Info.plist
+DerivedData/
+*.xcresult/
+*.xcuserstate
+xcuserdata/
+*.ipa
