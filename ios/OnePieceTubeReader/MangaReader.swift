@@ -185,7 +185,7 @@ final class PDFPageController: UIViewController, UIGestureRecognizerDelegate {
         if let source = PDFDocument(url: url), let page = source.page(at: position.page) {
             let document = PDFDocument(); document.insert(page, at: 0); pdf.document = document
         }
-        let tap = UITapGestureRecognizer(target: self, action: #selector(tapped)); tap.cancelsTouchesInView = false
+        let tap = UITapGestureRecognizer(target: self, action: #selector(tapped)); tap.cancelsTouchesInView = false; tap.delegate = self
         view.addGestureRecognizer(tap)
         for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
             let swipe = UISwipeGestureRecognizer(target: self, action: #selector(swiped(_:)))
@@ -203,10 +203,11 @@ final class PDFPageController: UIViewController, UIGestureRecognizerDelegate {
     @objc private func tapped() { onTap?() }
     @objc private func swiped(_ gesture: UISwipeGestureRecognizer) { onSwipe?(gesture.direction == .right) }
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        pdf.scaleFactor <= pdf.minScaleFactor * 1.02
+        gestureRecognizer is UITapGestureRecognizer || pdf.scaleFactor <= pdf.minScaleFactor * 1.02
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        gestureRecognizer is UISwipeGestureRecognizer && pdf.scaleFactor <= pdf.minScaleFactor * 1.02
+        if gestureRecognizer is UITapGestureRecognizer { return true }
+        return gestureRecognizer is UISwipeGestureRecognizer && pdf.scaleFactor <= pdf.minScaleFactor * 1.02
     }
 }

@@ -34,7 +34,9 @@ final class ReaderUITests: XCTestCase {
         let close = app.buttons["reader-close"]
         // Wait until the reader has loaded before revealing its controls.
         XCTAssertTrue(app.otherElements["manga-pager"].waitForExistence(timeout: 10))
-        app.swipeRight(); center.tap()
+        app.swipeRight()
+        if !close.exists { center.tap() }
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["2 / 2"].waitForExistence(timeout: 5))
         app.buttons["Nächste Seite"].tap()
         XCTAssertTrue(app.staticTexts["Kapitel 10"].waitForExistence(timeout: 5))
